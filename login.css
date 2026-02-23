@@ -57,6 +57,15 @@ body {
     margin-bottom: 10px;
     font-weight: 500;
     color: rgb(40, 40, 40);
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    padding: 0 6px;
+    color: #999;
+    pointer-events: none;
+    transition: 0.5s ease;
 }
 
 .input-email {
