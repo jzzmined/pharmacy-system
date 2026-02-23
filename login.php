@@ -64,15 +64,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="floating-group">
                 <input
                     type="text"
-                    id="email"
-                    name="email"
+                    id="name"
+                    name="name"
                     class="input-email"
                     placeholder=" "
-                    autocomplete="username"
-                    value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
+                    autocomplete="name"
+                    value="<?= htmlspecialchars($_POST['name'] ?? '') ?>"
                     required
                 >
-                <label for="email">Username</label>
+                <label for="name">Username</label>
             </div>
 
             <!-- Floating Label: Password -->

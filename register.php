@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register</title>
+    <title>Sign Up</title>
 
     <!-- Bootstrap 5 CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700&display=swap">
     <!-- Your Custom CSS -->
-    <link rel="stylesheet" href="login.css">
+    <link rel="stylesheet" href="register.css">
 
 </head>
 <body>
@@ -60,19 +60,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <form class="form" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" method="post" autocomplete="on">
 
-            <!-- Floating Label: Username -->
+            <!-- Floating Label: Full Name -->
             <div class="floating-group">
                 <input
                     type="text"
+                    id="name"
+                    name="name"
+                    class="input-email"
+                    placeholder=" "
+                    autocomplete="name"
+                    value="<?= htmlspecialchars($_POST['name'] ?? '') ?>"
+                    required
+                >
+                <label for="name">Full Name</label>
+            </div>
+
+            <!-- Floating Label: Email -->
+            <div class="floating-group">
+                <input
+                    type="email"
                     id="email"
                     name="email"
                     class="input-email"
                     placeholder=" "
-                    autocomplete="username"
+                    autocomplete="email"
                     value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
                     required
                 >
-                <label for="email">Username</label>
+                <label for="email">Email Address</label>
+            </div>
+            
+            <!-- Floating Label: Username -->
+            <div class="floating-group">
+                <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    class="input-email"
+                    placeholder=" "
+                    autocomplete="username"
+                    value="<?= htmlspecialchars($_POST['username'] ?? '') ?>"
+                    required
+                >
+                <label for="username">Username</label>
             </div>
 
             <!-- Floating Label: Password -->
@@ -88,47 +118,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 >
                 <label for="password">Password</label>
             </div>
-            
-            <!-- Floating Label: Username -->
-            <div class="floating-group">
-                <input
-                    type="text"
-                    id="email"
-                    name="email"
-                    class="input-email"
-                    placeholder=" "
-                    autocomplete="username"
-                    value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
-                    required
-                >
-                <label for="email">Username</label>
-            </div>
 
-            <!-- Floating Label: Password -->
+            <!-- Floating Label: Confirm Password -->
             <div class="floating-group">
                 <input
                     type="password"
-                    id="password"
-                    name="password"
+                    id="confirm_password"
+                    name="confirm_password"
                     class="input-pass"
                     placeholder=" "
                     autocomplete="current-password"
                     required
                 >
-                <label for="password">Password</label>
+                <label for="confirm_password">Confirm Password</label>
             </div>
 
-            
-            <div class="remember-forgot">
-                <label><input type="checkbox" name="remember" id="remember" <?= isset($_POST['remember']) ? 'checked' : '' ?>> Remember me</label>
-                <p class="forgot-pass">Forgot Password?</p>
-            </div>
 
-            <button type="submit" class="login_btn">Login</button>
+            <button type="submit" class="signup_btn">Sign Up</button>
         </form>
 
         <p class="text">
-            <a href="register.php" class="link">Register</a>
+                Already have an account?
+            <a href="login.php" class="link">Login</a>
         </p>
 
     </div>

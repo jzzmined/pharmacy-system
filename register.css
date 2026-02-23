@@ -1,140 +1,151 @@
-    body {
-   margin: 0;
-   font-family: 'Lexend';
-   font-size: 20px;
-   background-color: rgb(212, 234, 244);
+body {
+    font-family: 'Roboto', sans-serif;
+    font-size: 20px;
+    background-color: rgb(212, 234, 244);
+    background-image: url(assets/bg-img2.jpg);
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center center;
+    background-attachment: fixed;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0;
 }
 
 .container {
     position: relative;
     width: 380px;
-    height: auto;
+    height: 600px;
     padding: 30px;
-    margin: 50px auto;
-    background-color: rgb(233, 249, 247);
-    border-radius: 20px;
-    box-shadow: 5px 5px 15px rgb(188, 216, 215);
-    text-align: center
+    margin: auto;
+    background-color: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 30px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    text-align: center;
+    margin-left: 780px;
 }
 
 .title {
-    margin-bottom: 10px;
-    text-align: left;
+    text-align: center;
     margin-left: 10px;
-    font-weight: 600px;
+    margin-bottom: 10px;
+    font-weight: 600;
     font-size: 28px;
+    color: rgb(23, 27, 30);
 }
 
-.form { 
+.subhead {
+    font-family: 'Outfit', sans-serif;
+    text-align: center;
+    font-size: 18px;
+    margin-left: 10px;
+    margin-bottom: 30px;
+    color: rgb(6, 21, 38);
+}
+
+.form {
     text-align: justify;
     font-size: 18px;
     margin-left: 10px;
     margin-right: 10px;
 }
 
-.label {
-    display: block;
-    margin-top: 15px;
-    font-size: 15px;
-    margin-bottom: 10px;
-    font-weight: 500;
-    color: rgb(40,40,40);
+/* ── Floating Group Wrapper ── */
+.floating-group {
+    position: relative;
+    margin-bottom: 24px; 
 }
 
-.input-name {
-    display: block;
-    width: 95%;
-    padding: 10px;
-    font-size: 13px;
-    font-family: Lexend;
-    border-radius: 6px;
-    border: 1.5px solid #cbd5e0;
-    background-color: white;
-}
 
-.input-name:focus {
-    outline: none;
-    border-color: rgb(87, 134, 175);
-    box-shadow: 0 0 0 3px rgba(28, 112, 186, 0.1);
-}
-
-.input-name::placeholder {
-    color: #a0aec0;
-}
-
-.input-email {
-        display: block;
-    width: 95%;
-    padding: 10px;
-    font-size: 13px;
-    font-family: Lexend;
-    border-radius: 6px;
-    border: 1.5px solid #cbd5e0;
-    background-color: white;
-}
-
-.input-email:focus {
-    outline: none;
-    border-color: rgb(87, 134, 175);
-    box-shadow: 0 0 0 3px rgba(28, 112, 186, 0.1);
-}
-
-.input-email ::placeholder {
-    color: #a0aec0;
-}
-
+.input-email,
 .input-pass {
     display: block;
-    width: 95%;
-    padding: 10px;
+    width: 100%;
+    padding: 10px 14px;
     font-size: 13px;
-    font-family: Lexend;
-    border-radius: 6px;
+    font-family: 'Outfit', sans-serif;
+    border-radius: 20px;
     border: 1.5px solid #cbd5e0;
     background-color: white;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+.input-email:focus,
 .input-pass:focus {
     outline: none;
     border-color: rgb(87, 134, 175);
     box-shadow: 0 0 0 3px rgba(28, 112, 186, 0.1);
 }
 
-.input-pass::placeholder {
+
+.floating-group label {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 13px;
+    font-family: 'Outfit', sans-serif;
     color: #a0aec0;
+    pointer-events: none;
+    transition: all 0.2s ease;
+    background: rgba(255, 255, 255, 0.8); 
+    padding: 0 4px;
+    border-radius: 4px;
 }
 
-.login_btn {
+
+.input-email:focus ~ label,
+.input-email:not(:placeholder-shown) ~ label,
+.input-pass:focus ~ label,
+.input-pass:not(:placeholder-shown) ~ label {
+    top: 0;                       
+    transform: translateY(-50%);  
+    font-size: 10px;
+    color: rgb(28, 112, 186);
+}
+
+
+.signup_btn {
     display: block;
-    width: 100%;
+    width: 70%;
     margin: 25px auto 20px auto;
     padding: 12px;
-    background-color:  rgb(1, 21, 38);
+    background-color: rgb(1, 21, 38);
     color: whitesmoke;
     text-align: center;
-    border-radius: 6px;
+    border-radius: 20px;
     border: none;
-    font-family: Lexend ;
+    font-family: 'Outfit', sans-serif;
     font-size: 15px;
+    font-weight: 500;
     cursor: pointer;
+    transition: background-color 0.2s;
 }
+
 .login_btn:hover {
-    background-color: rgb(1, 23, 38);
+    background-color: rgb(28, 112, 186);
 }
 
 .text {
     margin-top: 15px;
-    font-size: 16px;
-}
-
-.agree-terms {
-    margin-top: 20px;
-    margin-bottom: 5px;
-    font-size: 14px;
+    font-size: 17px;
+    font-family: 'Outfit', sans-serif;
+    color: rgb(8, 13, 17);
 }
 
 .link {
-    color: rgb(28, 112, 186);
+    color: rgb(8, 13, 17);
     text-decoration: none;
     font-weight: 500;
+    cursor: pointer;
+    font-family: "Outfit", sans-serif;
+}
+
+.link:hover {
+    text-decoration: underline;
 }

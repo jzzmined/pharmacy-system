@@ -16,7 +16,7 @@ body {
 
 .container {
     position: relative;
-    width: 340px;
+    width: 380px;
     padding: 30px;
     margin: auto;
     background-color: rgba(255, 255, 255, 0.1);
@@ -31,10 +31,11 @@ body {
 
 .title {
     text-align: center;
-    margin-left: 10px;
+    margin-top: 10px;
     margin-bottom: 10px;
     font-weight: 600;
     font-size: 28px;
+    color: rgb(23, 27, 30);
 }
 
 .subhead {
@@ -43,7 +44,7 @@ body {
     font-size: 18px;
     margin-left: 10px;
     margin-bottom: 30px;
-    color: rgb(60, 60, 60);
+    color: rgb(6, 21, 38);
 }
 
 .form {
@@ -134,17 +135,21 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 14px;
+    font-size: 13px;
     margin-top: 5px;
     margin-bottom: 5px;
     font-family: 'Outfit', sans-serif;
+    font-weight: 500;
+    color: rgb(8, 13, 17);
 }
 
 .forgot-pass {
     margin: 0;
-    color: rgb(28, 112, 186);
+    color: rgb(8, 13, 17);
     cursor: pointer;
     font-size: 13px;
+    font-weight: 500;
+    font-family: "Outfit", sans-serif;
 }
 
 .forgot-pass:hover {
@@ -153,13 +158,16 @@ body {
 
 /* ── Register Link ── */
 .text {
-    margin-top: 20px;
-    font-size: 16px;
+    margin-top: 15px;
+    font-size: 17px;
 }
 
 .link {
-    color: rgb(28, 112, 186);
+    color: rgb(8, 13, 17);
     text-decoration: none;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: "Outfit", sans-serif;
 }
 
 .link:hover {
