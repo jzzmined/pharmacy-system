@@ -13,9 +13,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($email) || empty($password)) {
         $error = 'Please fill in all fields.';
     } elseif ($email === $valid_email && $password === $valid_password) {
-        // Successful login — redirect to your dashboard/page
-        // header('Location: portfolio_task7.php');
-        // exit;
         $success = 'Login successful! Welcome back.';
     } else {
         $error = 'Invalid email or password. Please try again.';
@@ -62,7 +59,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <form class="form" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" method="post" autocomplete="on">
-            <input type="email" id="email" name="email" class="input-email" placeholder="Username" autocomplete="email" value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" required>
+            <label for="username">Username:</label>
+            <input type="text" id="email" name="email" class="input-email" placeholder="Username" autocomplete="text" value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" required>
+
+            <label for="password">Password:</label>
             <input type="password" id="password" name="password" class="input-pass" placeholder="Password" autocomplete="current-password" required>
             <div class="remember-forgot">
                 <label><input type="checkbox" name="remember" id="remember" <?= isset($_POST['remember']) ? 'checked' : '' ?>> Remember me</label>
@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
 
         <p class="text">
-            <a href="register_task5.php" class="link">Register</a>
+            <a href="register.php" class="link">Register</a>
         </p>
 
     </div>
