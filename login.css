@@ -5,9 +5,12 @@ body {
    background-image: url(assets/bg-img.jpg);
    background-repeat: no-repeat;
    background-size: cover;
+   background-attachment: fixed;
+   min-height: 100vh;
    display: flex;
    justify-content: center;
    align-items: center;
+   margin: 0;
 }
 
 .container {
