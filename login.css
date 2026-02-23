@@ -1,22 +1,25 @@
 body {
-   font-family: 'Roboto', sans-serif;
-   font-size: 20px;
-   background-color:rgb(212, 234, 244);
-   background-image: url(assets/bg-img.jpg);
-   background-repeat: no-repeat;
-   background-size: cover;
-   display: flex;
-   justify-content: center;
-   align-items: center;
+    font-family: 'Roboto', sans-serif;
+    font-size: 20px;
+    background-color: rgb(212, 234, 244);
+    background-image: url(assets/bg-img.jpg);
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center center;
+    background-attachment: fixed;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0;
 }
 
 .container {
     position: relative;
     width: 340px;
-    height: 400px;
     padding: 30px;
     margin: 50px auto;
-    background-color:   rgb(217, 240, 237);
+    background-color: rgb(217, 240, 237);
     border-radius: 30px;
     box-shadow: 5px 5px 15px rgb(188, 216, 215);
     text-align: center;
@@ -40,69 +43,68 @@ body {
     color: rgb(60, 60, 60);
 }
 
-.form { 
+.form {
     text-align: justify;
     font-size: 18px;
     margin-left: 10px;
     margin-right: 10px;
 }
 
-.label {
-    display: block;
-    margin-top: 15px;
-    font-size: 15px;
-    margin-bottom: 10px;
-    font-weight: 500;
-    color: rgb(40, 40, 40);
+/* ── Floating Group Wrapper ── */
+.floating-group {
+    position: relative;
+    margin-bottom: 24px; /* space above each field for the floated label */
 }
 
-.input-email {
-    display: block;
-    width: 95%;
-    padding: 10px;
-    font-size: 13px;
-    font-family: Lexend;
-    border-radius: 20px;
-    border: 0px solid #cbd5e0;
-    background-color: white;
-    margin-bottom: 15px;
-    font-family: 'Outfit', sans-serif;
-}
-
-.input-email:focus {
-    outline: none;
-    border-color: rgb(87, 134, 175);
-    box-shadow: 0 0 0 3px rgba(28, 112, 186, 0.1);
-}
-
-.input-pass::placeholder {
-    color: #a0aec0;
-}
-
+/* ── Input Fields ── */
+.input-email,
 .input-pass {
     display: block;
-    width: 95%;
-    padding: 10px;
+    width: 100%;
+    padding: 18px 10px 6px 14px; /* large top padding so typed text clears the label */
     font-size: 13px;
-    font-family: Lexend;
-    border-radius: 20px;
-    border: 0px solid #cbd5e0;
-    background-color: white;
-    margin: auto;
     font-family: 'Outfit', sans-serif;
-    
+    border-radius: 20px;
+    border: 1.5px solid #cbd5e0;
+    background-color: white;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+.input-email:focus,
 .input-pass:focus {
     outline: none;
     border-color: rgb(87, 134, 175);
     box-shadow: 0 0 0 3px rgba(28, 112, 186, 0.1);
 }
 
-.input-pass::placeholder {
+/* ── Label: default position (inside the field, vertically centered) ── */
+.floating-group label {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 13px;
+    font-family: 'Outfit', sans-serif;
     color: #a0aec0;
+    pointer-events: none;
+    transition: all 0.2s ease;
+    background: white;   /* covers the border so label sits ON TOP of it */
+    padding: 0 4px;
+    border-radius: 4px;
 }
 
+/* ── Label: floated OUTSIDE and ABOVE the top border ── */
+.input-email:focus ~ label,
+.input-email:not(:placeholder-shown) ~ label,
+.input-pass:focus ~ label,
+.input-pass:not(:placeholder-shown) ~ label {
+    top: 0;                       /* aligns to the top border line */
+    transform: translateY(-50%);  /* pulls it halfway outside the field */
+    font-size: 10px;
+    color: rgb(28, 112, 186);
+}
+
+/* ── Login Button ── */
 .login_btn {
     display: block;
     width: 70%;
@@ -117,25 +119,46 @@ body {
     font-size: 15px;
     font-weight: 500;
     cursor: pointer;
+    transition: background-color 0.2s;
 }
 
+.login_btn:hover {
+    background-color: rgb(28, 112, 186);
+}
+
+/* ── Remember / Forgot ── */
+.remember-forgot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    font-family: 'Outfit', sans-serif;
+}
+
+.forgot-pass {
+    margin: 0;
+    color: rgb(28, 112, 186);
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.forgot-pass:hover {
+    text-decoration: underline;
+}
+
+/* ── Register Link ── */
 .text {
     margin-top: 20px;
     font-size: 16px;
 }
 
 .link {
-    align-items: center;
     color: rgb(28, 112, 186);
     text-decoration: none;
 }
 
-.remember-forgot {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 14px;
-    margin-top: 15px;
-    margin-bottom: 5px;
-    font-family: 'Outfit', sans-serif;
+.link:hover {
+    text-decoration: underline;
 }
