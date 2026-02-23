@@ -1,0 +1,140 @@
+    body {
+   margin: 0;
+   font-family: 'Lexend';
+   font-size: 20px;
+   background-color: rgb(212, 234, 244);
+}
+
+.container {
+    position: relative;
+    width: 380px;
+    height: auto;
+    padding: 30px;
+    margin: 50px auto;
+    background-color: rgb(233, 249, 247);
+    border-radius: 20px;
+    box-shadow: 5px 5px 15px rgb(188, 216, 215);
+    text-align: center
+}
+
+.title {
+    margin-bottom: 10px;
+    text-align: left;
+    margin-left: 10px;
+    font-weight: 600px;
+    font-size: 28px;
+}
+
+.form { 
+    text-align: justify;
+    font-size: 18px;
+    margin-left: 10px;
+    margin-right: 10px;
+}
+
+.label {
+    display: block;
+    margin-top: 15px;
+    font-size: 15px;
+    margin-bottom: 10px;
+    font-weight: 500;
+    color: rgb(40,40,40);
+}
+
+.input-name {
+    display: block;
+    width: 95%;
+    padding: 10px;
+    font-size: 13px;
+    font-family: Lexend;
+    border-radius: 6px;
+    border: 1.5px solid #cbd5e0;
+    background-color: white;
+}
+
+.input-name:focus {
+    outline: none;
+    border-color: rgb(87, 134, 175);
+    box-shadow: 0 0 0 3px rgba(28, 112, 186, 0.1);
+}
+
+.input-name::placeholder {
+    color: #a0aec0;
+}
+
+.input-email {
+        display: block;
+    width: 95%;
+    padding: 10px;
+    font-size: 13px;
+    font-family: Lexend;
+    border-radius: 6px;
+    border: 1.5px solid #cbd5e0;
+    background-color: white;
+}
+
+.input-email:focus {
+    outline: none;
+    border-color: rgb(87, 134, 175);
+    box-shadow: 0 0 0 3px rgba(28, 112, 186, 0.1);
+}
+
+.input-email ::placeholder {
+    color: #a0aec0;
+}
+
+.input-pass {
+    display: block;
+    width: 95%;
+    padding: 10px;
+    font-size: 13px;
+    font-family: Lexend;
+    border-radius: 6px;
+    border: 1.5px solid #cbd5e0;
+    background-color: white;
+}
+
+.input-pass:focus {
+    outline: none;
+    border-color: rgb(87, 134, 175);
+    box-shadow: 0 0 0 3px rgba(28, 112, 186, 0.1);
+}
+
+.input-pass::placeholder {
+    color: #a0aec0;
+}
+
+.login_btn {
+    display: block;
+    width: 100%;
+    margin: 25px auto 20px auto;
+    padding: 12px;
+    background-color:  rgb(1, 21, 38);
+    color: whitesmoke;
+    text-align: center;
+    border-radius: 6px;
+    border: none;
+    font-family: Lexend ;
+    font-size: 15px;
+    cursor: pointer;
+}
+.login_btn:hover {
+    background-color: rgb(1, 23, 38);
+}
+
+.text {
+    margin-top: 15px;
+    font-size: 16px;
+}
+
+.agree-terms {
+    margin-top: 20px;
+    margin-bottom: 5px;
+    font-size: 14px;
+}
+
+.link {
+    color: rgb(28, 112, 186);
+    text-decoration: none;
+    font-weight: 500;
+}
