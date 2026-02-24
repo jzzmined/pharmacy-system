@@ -13,7 +13,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($email) || empty($password)) {
         $error = 'Please fill in all fields.';
     } elseif ($email === $valid_email && $password === $valid_password) {
-        $success = 'Login successful! Welcome back.';
+        if (session_status() === PHP_SESSION_NONE) { 
+            session_start(); 
+        }
+        
+        // These MUST match the keys used in auth.php
+        $_SESSION['logged_in'] = true;
+        $_SESSION['full_name'] = 'Pharmacist'; 
+        $_SESSION['username']  = 'admin';
+        
+        header("Location: dashboard.php");
+        exit;
     } else {
         $error = 'Invalid email or password. Please try again.';
     }
@@ -63,35 +73,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <form class="form" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" method="post" autocomplete="on">
 
-                <!-- Floating Label: Username -->
-                <div class="inputs">
-                    <input type="email" id="email" required placeholder=" ">
-                    <label for="email">Email address:</label>
-        </div>
+    <div class="inputs">
+        <input type="email" id="email" name="email" required placeholder=" ">
+        <label for="email">Email address:</label>
+    </div>
 
-        <div class="pass">
-            <input type="password" id="password" required placeholder=" ">
-            <label for="password">Password:</label>
-        </div>
+    <div class="pass">
+        <input type="password" id="password" name="password" required placeholder=" ">
+        <label for="password">Password:</label>
+    </div>
 
-        <div class="opts">
-            <label>
-                <input type="checkbox">
-                Remember password
-            </label>
-            <a class= "forgot" href="">Forgot password?</a>
-        </div>
+    <div class="opts">
+        <label>
+            <input type="checkbox" name="remember">
+            Remember password
+        </label>
+        <a class="forgot" href="">Forgot password?</a>
+    </div>
 
-        <button type="submit">Login</button>
+    <button type="submit">Login</button>
 
-        <button class="btn-signup">
-            <a href="register.php" class="link">Register</a>
-        </button>
+    <button type="button" class="btn-signup">
+        <a href="register.php" class="link">Register</a>
+    </button>
 
-         <p class="signup">
-            Don’t have an account? <a href="reg.html">Sign up</a>
-        </p>
-        </form>
+    <p class="signup">
+        Don’t have an account? <a href="register.php">Sign up</a>
+    </p>
+</form>
     </div>
     </div>
 

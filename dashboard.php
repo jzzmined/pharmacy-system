@@ -1,85 +1,98 @@
 <?php
-/**
- * PharmaCare — Dashboard API
- * Returns JSON consumed by dashboard.js auto-refresh.
- */
-require_once dirname(__DIR__) . '/auth.php';
-require_once dirname(__DIR__) . '/config.php';
+// Pointing to the new folder location
+require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/config.php';
 
-header('Content-Type: application/json');
-header('Cache-Control: no-store');
+$page_title = 'Dashboard';
 
 try {
     $db = getDB();
 
-    /* Today's revenue */
-    $s = $db->prepare(
-        "SELECT IFNULL(SUM(i.Total),0)
-         FROM invoices i
-         JOIN prescriptions pr ON i.PrescriptionID=pr.PrescriptionID
-         WHERE DATE(pr.DatePrescribed)=CURDATE()"
-    );
-    $s->execute(); $revenue = $s->fetchColumn();
+    // 1. Revenue Today
+    $s = $db->prepare("SELECT IFNULL(SUM(i.Total),0) FROM invoices i 
+        JOIN prescriptions pr ON i.PrescriptionID=pr.PrescriptionID 
+        WHERE DATE(pr.DatePrescribed)=CURDATE()");
+    $s->execute(); 
+    $revenue = (float) $s->fetchColumn();
 
-    /* Patients today */
-    $s = $db->prepare(
-        "SELECT COUNT(DISTINCT PatientID) FROM prescriptions WHERE DATE(DatePrescribed)=CURDATE()"
-    );
-    $s->execute(); $patients = $s->fetchColumn();
+    // 2. Patients Today
+    $s = $db->prepare("SELECT COUNT(DISTINCT PatientID) FROM prescriptions WHERE DATE(DatePrescribed)=CURDATE()");
+    $s->execute(); 
+    $patients = (int) $s->fetchColumn();
 
-    /* Prescriptions today */
-    $s = $db->prepare(
-        "SELECT COUNT(*) FROM prescriptions WHERE DATE(DatePrescribed)=CURDATE()"
-    );
-    $s->execute(); $prescriptions = $s->fetchColumn();
+    // 3. Low Stock Items
+    $s = $db->prepare("SELECT m.GenericName, m.BrandName, m.DosageStrength, SUM(md.StockAvailability) AS TotalStock 
+        FROM medications m JOIN medicationdetails md ON m.MedicationID=md.MedicationID 
+        GROUP BY m.MedicationID HAVING TotalStock <= 200 ORDER BY TotalStock ASC LIMIT 5");
+    $s->execute(); 
+    $lowItems = $s->fetchAll();
 
-    /* Low stock count */
-    $s = $db->prepare(
-        "SELECT COUNT(*) FROM (
-            SELECT MedicationID, SUM(StockAvailability) t
-            FROM medicationdetails GROUP BY MedicationID HAVING t<=200
-         ) x"
-    );
-    $s->execute(); $lowCount = $s->fetchColumn();
-
-    /* Low stock items */
-    $s = $db->prepare(
-        "SELECT m.GenericName, m.BrandName, m.DosageStrength,
-                SUM(md.StockAvailability) AS TotalStock
-         FROM medications m
-         JOIN medicationdetails md ON m.MedicationID=md.MedicationID
-         GROUP BY m.MedicationID, m.GenericName, m.BrandName, m.DosageStrength
-         HAVING TotalStock<=200 ORDER BY TotalStock ASC LIMIT 10"
-    );
-    $s->execute(); $lowItems = $s->fetchAll();
-
-    /* Recent transactions */
-    $s = $db->prepare(
-        "SELECT i.InvoiceID,
-                p.FullName AS PatientName,
-                GROUP_CONCAT(m.GenericName ORDER BY m.GenericName SEPARATOR ', ') AS Medicines,
-                i.Total, 'Completed' AS Status
-         FROM invoices i
-         JOIN prescriptions pr  ON i.PrescriptionID=pr.PrescriptionID
-         JOIN patients p        ON pr.PatientID=p.PatientID
-         JOIN prescriptiondetails pd ON pr.PrescriptionID=pd.PrescriptionID
-         JOIN medications m     ON pd.MedicationID=m.MedicationID
-         GROUP BY i.InvoiceID, p.FullName, i.Total
-         ORDER BY i.InvoiceID DESC LIMIT 10"
-    );
-    $s->execute(); $txns = $s->fetchAll();
-
-    echo json_encode([
-        'error'                     => false,
-        'today_revenue'             => (float) $revenue,
-        'total_patients_today'      => (int) $patients,
-        'total_prescriptions_today' => (int) $prescriptions,
-        'low_stock_count'           => (int) $lowCount,
-        'low_stock_items'           => $lowItems,
-        'recent_transactions'       => $txns,
-    ]);
-
-} catch (Throwable $e) {
-    http_response_code(500);
-    echo json_encode(['error' => true, 'message' => $e->getMessage()]);
+} catch (PDOException $e) {
+    die("Connection failed: " . $e->getMessage());
 }
+
+// Helper functions for stock UI
+function barClass($q) { return $q <= 50 ? 'pc-bar-red' : ($q <= 150 ? 'pc-bar-orange' : 'pc-bar-teal'); }
+function sqClass($q)  { return $q <= 50 ? 'pc-stock-critical' : ''; }
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PharmaCare — <?= $page_title ?></title>
+    <link rel="stylesheet" href="dashboard.css">
+</head>
+<body class="pc-body-bg">
+
+<div class="pc-layout">
+    <?php include 'header.php'; ?>
+
+    <main class="pc-main-content">
+        <div class="pc-container">
+            
+            <div class="pc-stats-grid">
+                <div class="pc-card pc-stat-card">
+                    <h3>Today's Revenue</h3>
+                    <p class="pc-stat-value">₱<?= number_format($revenue, 2) ?></p>
+                </div>
+                <div class="pc-card pc-stat-card">
+                    <h3>Patients Served</h3>
+                    <p class="pc-stat-value"><?= $patients ?></p>
+                </div>
+            </div>
+
+            <div class="pc-card pc-inventory-card">
+                <div class="pc-card-header">
+                    <h2>Inventory Alerts (Low Stock)</h2>
+                </div>
+                <div class="pc-stock-list">
+                    <?php if(empty($lowItems)): ?>
+                        <p>All items are well-stocked.</p>
+                    <?php else: ?>
+                        <?php foreach($lowItems as $item): 
+                            $qty = (int)$item['TotalStock'];
+                            $pct = min(round(($qty/200)*100), 100);
+                        ?>
+                            <div class="pc-stock-item">
+                                <div class="pc-stock-info">
+                                    <strong><?= htmlspecialchars($item['GenericName']) ?></strong>
+                                    <span><?= $qty ?> units left</span>
+                                </div>
+                                <div class="pc-progress-bg">
+                                    <div class="pc-progress-fill <?= barClass($qty) ?>" style="width: <?= $pct ?>%"></div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+<div id="toastTray" class="pc-toast-tray"></div>
+<script src="dashboard.js"></script>
+</body>
+</html>
