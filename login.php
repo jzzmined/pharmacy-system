@@ -3,11 +3,11 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email    = trim($_POST['email'] ?? '');
+    $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
     $remember = isset($_POST['remember']);
 
-    $valid_email    = 'user@example.com';
+    $valid_email = 'user@example.com';
     $valid_password = 'password123';
 
     if (empty($email) || empty($password)) {
@@ -21,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -37,74 +38,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="login.css">
 
 </head>
+
 <body>
 
-    <div class="container">
+    <div class="cons">
+        <div class="Log_card">
 
-        <h2 class="title">Login</h2>
-        <p class="subhead">The care you count on...</p>
+            <h1 class="title">Login</h1>
+            <p class="tag">The care you count on...</p>
 
-        <?php if ($error): ?>
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <?= htmlspecialchars($error) ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endif; ?>
+            <?php if ($error): ?>
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <?= htmlspecialchars($error) ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php endif; ?>
 
-        <?php if ($success): ?>
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <?= htmlspecialchars($success) ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endif; ?>
+            <?php if ($success): ?>
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <?= htmlspecialchars($success) ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php endif; ?>
 
-        <form class="form" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" method="post" autocomplete="on">
+            <form class="form" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" method="post" autocomplete="on">
 
-            <!-- Floating Label: Username -->
-            <div class="floating-group">
-                <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    class="input-email"
-                    placeholder=" "
-                    autocomplete="name"
-                    value="<?= htmlspecialchars($_POST['name'] ?? '') ?>"
-                    required
-                >
-                <label for="name">Username</label>
-            </div>
+                <!-- Floating Label: Username -->
+                <div class="inputs">
+                    <input type="email" id="email" required placeholder=" ">
+                    <label for="email">Email address:</label>
+        </div>
 
-            <!-- Floating Label: Password -->
-            <div class="floating-group">
-                <input
-                    type="password"
-                    id="password"
-                    name="password"
-                    class="input-pass"
-                    placeholder=" "
-                    autocomplete="current-password"
-                    required
-                >
-                <label for="password">Password</label>
-            </div>
+        <div class="pass">
+            <input type="password" id="password" required placeholder=" ">
+            <label for="password">Password:</label>
+        </div>
 
-            <div class="remember-forgot">
-                <label><input type="checkbox" name="remember" id="remember" <?= isset($_POST['remember']) ? 'checked' : '' ?>> Remember me</label>
-                <p class="forgot-pass">Forgot Password?</p>
-            </div>
+        <div class="opts">
+            <label>
+                <input type="checkbox">
+                Remember password
+            </label>
+            <a class= "forgot" href="">Forgot password?</a>
+        </div>
 
-            <button type="submit" class="login_btn">Login</button>
-        </form>
+        <button type="submit">Login</button>
 
-        <p class="text">
+        <button class="btn-signup">
             <a href="register.php" class="link">Register</a>
-        </p>
+        </button>
 
+         <p class="signup">
+            Don’t have an account? <a href="reg.html">Sign up</a>
+        </p>
+        </form>
+    </div>
     </div>
 
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 </body>
+
 </html>
