@@ -180,10 +180,10 @@ function stockClass(int $s): string {
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="rx-field">
+                        <!-- <div class="rx-field">
                             <input type="text" class="rx-input" id="ptCondition"
                                    placeholder="Diagnosis / Condition">
-                        </div>
+                        </div> -->
                         <div class="rx-field">
                             <input type="text" class="rx-input" id="ptContact"
                                    placeholder="Contact number">
@@ -199,8 +199,8 @@ function stockClass(int $s): string {
 
                             <div class="rx-search-row">
                                 <input type="text" class="rx-search-input" id="medSearch"
-                                       placeholder="Search medicines…">
-                                <button class="rx-search-btn" onclick="filterMeds()">Search</button>
+                                       placeholder="Search...">
+                                <!-- <button class="rx-search-btn" onclick="filterMeds()">Search</button> -->
                             </div>
 
                             <div class="rx-med-table-wrap">

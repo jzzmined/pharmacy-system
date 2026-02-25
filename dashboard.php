@@ -133,13 +133,13 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
         <div class="page-body">
 
             <!-- Welcome Banner -->
-            <div class="welcome-banner">
+            <!-- <div class="welcome-banner">
                 <div>
                     <div class="wb-title">Welcome back, <?= htmlspecialchars($_SESSION['full_name'] ?? 'Pharmacist') ?> 👋</div>
                     <div class="wb-sub">Here is what's happening in your pharmacy today.</div>
                 </div>
                 <div class="wb-pill"><?= date('D, M j Y') ?></div>
-            </div>
+            </div> -->
 
             <!-- Stat Cards -->
             <div class="stats-row">
@@ -166,7 +166,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                             <rect x="9" y="3" width="6" height="4" rx="2"/>
                         </svg>
                     </div>
-                    <div>
+                    <!-- <div>
                         <div class="stat-label">Prescriptions Today</div>
                         <div class="stat-value" id="statPrescriptions"><?= $prescriptions ?></div>
                     </div>
@@ -179,7 +179,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                             <line x1="12" y1="9" x2="12" y2="13"/>
                             <line x1="12" y1="17" x2="12.01" y2="17"/>
                         </svg>
-                    </div>
+                    </div> -->
                     <div>
                         <div class="stat-label">Low Stock Alerts</div>
                         <div class="stat-value" id="statLowStock"><?= $lowCount ?></div>
@@ -221,7 +221,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                         </div>
                         <div style="display:flex;gap:8px;align-items:center">
                             <input class="search-box" id="searchTxn" placeholder="Search…" type="text">
-                            <a href="transactions.php" class="card-link">View all</a>
+                            <!-- <a href="transactions.php" class="card-link">View all</a> -->
                         </div>
                     </div>
                     <div class="table-scroll">
@@ -262,7 +262,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                             </div>
                             Low Stock Alerts
                         </div>
-                        <a href="medications.php" class="card-link">Manage</a>
+                        <!-- <a href="medications.php" class="card-link">Manage</a> -->
                     </div>
                     <div class="stock-list" id="stockList">
                     <?php if(empty($lowItems)): ?>
