@@ -49,7 +49,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PharmaCare — Dashboard</title>
-    <link rel="stylesheet" href="/assets/css/main.css">
+    <link rel="stylesheet" href="assets/css/main.css">
 </head>
 <body>
 
@@ -291,6 +291,6 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
 </div><!-- /app-layout -->
 
 <div class="toast-tray" id="toastTray"></div>
-<script src="dashboard.js"></script>
+<script src="assets/js/dashboard.js"></script>
 </body>
 </html>

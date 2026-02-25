@@ -8,22 +8,15 @@
 
 /* ── Variables ── */
 :root {
-    /* Cyan sidebar palette — taken from wireframe */
-    --cyan:         #4dd9d5;
-    --cyan-dark:    #29b5b0;
-    --cyan-deeper:  #1a9490;
-    --cyan-light:   #b2f0ee;
-    --cyan-pale:    #e4faf9;
-    --cyan-bg:      #d4f5f4;
-
-    /* Content palette — keep your original look */
-    --navy:         rgb(1, 21, 38);
-    --blue:         rgb(28, 112, 186);
-    --blue-lt:      rgba(28, 112, 186, 0.12);
-    --teal:         rgb(45, 165, 155);
-    --teal-lt:      rgb(217, 240, 237);
-    --teal-bg:      rgb(212, 234, 244);
-    --teal-soft:    rgb(233, 249, 247);
+   --navy-deep:     #0F2854; /* Deep Backgrounds / Sidebar */
+    --blue-dark:    #1C4D8D; /* Primary Headers */
+    --blue-main:    #4988C4; /* Primary Buttons / Active states */
+    --blue-pale:    #BDE8F5; /* Subtle highlights / Selected rows */
+    
+    --slate-steel:  #355872; /* Secondary text / Icons */
+    --blue-muted:   #7AAACE; /* Borders / Secondary buttons */
+    --blue-bright:  #9CD5FF; /* Hover effects */
+    --bg-soft:      #F7F8F0; /* Main page background */
 
     --green:        #22c55e;
     --green-lt:     #dcfce7;
@@ -41,14 +34,18 @@
     --slate-700:    #334155;
     --slate-800:    #1e293b;
 
-    /* Icon-only sidebar width — wireframe is narrow */
+    /* Functional Colors */
+    --white:        #ffffff;
+    --success:      #22c55e;
+    --danger:       #ef4444;
+
+    /* Layout & UI */
+    --white:        #ffffff;
+    --slate-100:    #f1f5f9;
+    --slate-200:    #e2e8f0;
     --sidebar-w:    80px;
     --topbar-h:     62px;
     --radius:       20px;
-    --radius-sm:    12px;
-    --radius-xs:    8px;
-    --shadow:       5px 5px 15px rgba(77,217,213,.22);
-    --shadow-md:    0 4px 20px rgba(0,60,100,.12);
     --font:         'Outfit', sans-serif;
     --ease:         0.2s ease;
 }
@@ -57,8 +54,8 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
     font-family: var(--font);
-    background: var(--teal-bg);
-    color: var(--slate-700);
+    background-color: var(--bg-soft);
+    color: var(--navy-deep);
     min-height: 100vh;
     overflow-x: hidden;
 }
@@ -76,7 +73,7 @@ ul     { list-style: none; }
    ==================================================== */
 .sidebar {
     width: var(--sidebar-w);
-    background: var(--cyan);
+    background-color: var(--navy-deep);
     min-height: 100vh;
     position: fixed;
     top: 0; left: 0; bottom: 0;
@@ -129,7 +126,7 @@ ul     { list-style: none; }
     position: relative;
 }
 .nav-item svg { width: 24px; height: 24px; }
-.nav-item:hover  { background: rgba(255,255,255,.25); color: #fff; }
+.nav-item:hover  { background-color: var(--blue-dark); }
 .nav-item.active {
     background: rgba(255,255,255,.35);
     color: #fff;
@@ -195,8 +192,8 @@ ul     { list-style: none; }
 /* ── Topbar ── */
 .topbar {
     height: var(--topbar-h);
-    background: #fff;
-    border-bottom: 1px solid var(--slate-200);
+    background-color: var(--white);
+    border-bottom: 2px solid var(--blue-pale);
     display: flex;
     align-items: center;
     gap: 14px;
@@ -225,7 +222,7 @@ ul     { list-style: none; }
 }
 .topbar-page {
     font-size: 1.15rem; font-weight: 800;
-    color: var(--slate-800); line-height: 1;
+    color: var(--blue-dark);    
 }
 
 .topbar-right { display: flex; align-items: center; gap: 10px; }
@@ -274,23 +271,44 @@ ul     { list-style: none; }
 
 /* ── Welcome banner ── */
 .welcome-banner {
-    background: var(--navy);
+    /* Using your deep navy for the main background */
+    background: #0F2854; 
     border-radius: var(--radius);
     padding: 22px 28px;
     margin-bottom: 22px;
-    display: flex; align-items: center; justify-content: space-between;
-    position: relative; overflow: hidden;
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between;
+    position: relative; 
+    overflow: hidden;
+    color: #FFFFFF; /* Ensure text is white for contrast */
 }
 .welcome-banner::after {
-    content: '✚'; position: absolute; right: 24px; top: -6px;
-    font-size: 5.5rem; opacity: .06; color: #fff; pointer-events: none;
+    content: '✚'; 
+    position: absolute; 
+    right: 24px; 
+    top: -6px;
+    font-size: 5.5rem; 
+    opacity: .1; /* Increased slightly to show against dark navy */
+    color: #9CD5FF; /* Using your bright blue for the icon */
+    pointer-events: none;
 }
-.wb-title { font-size: 1.1rem; font-weight: 800; color: #fff; }
-.wb-sub   { font-size: .8rem; color: rgba(255,255,255,.6); margin-top: 3px; }
+.wb-title { font-size: 1.1rem; 
+    font-weight: 800; 
+    color: #FFFFFF; }
+.wb-sub   { font-size: .8rem; 
+    color: #BDE8F5; /* Using your pale blue for the subtext */
+    margin-top: 3px; }
 .wb-pill  {
-    background: rgba(255,255,255,.12); color: rgba(255,255,255,.9);
-    font-size: .72rem; font-weight: 600;
-    padding: 6px 14px; border-radius: 99px; z-index: 1; white-space: nowrap;
+    /* Using your secondary blue for the status pill */
+    background: #1C4D8D; 
+    color: #FFFFFF;
+    font-size: .72rem; 
+    font-weight: 600;
+    padding: 6px 14px; 
+    border-radius: 99px; 
+    z-index: 1; 
+    white-space: nowrap;    
 }
 
 /* ── Stat cards ── */
@@ -300,10 +318,10 @@ ul     { list-style: none; }
     gap: 16px; margin-bottom: 22px;
 }
 .stat-card {
-    background: #fff; border-radius: var(--radius);
+    background: white; border-radius: var(--radius);
     padding: 20px 22px; box-shadow: var(--shadow);
     display: flex; align-items: center; gap: 16px;
-    border: 1px solid var(--slate-100);
+    border: 1px solid var(--blue-pale);
     position: relative; overflow: hidden;
     transition: transform var(--ease), box-shadow var(--ease);
 }
@@ -340,7 +358,7 @@ ul     { list-style: none; }
 }
 .stat-value {
     font-size: 1.75rem; font-weight: 800;
-    color: var(--slate-800); line-height: 1;
+    color: var(--navy-deep);line-height: 1;
 }
 .stat-sub   { font-size: .7rem; color: var(--slate-400); margin-top: 4px; }
 .stat-badge {
@@ -395,14 +413,15 @@ thead th {
     padding: 9px 18px; text-align: left;
     font-size: .65rem; font-weight: 700;
     text-transform: uppercase; letter-spacing: .09em;
-    color: var(--cyan-deeper);
-    background: var(--cyan-pale);
+    background-color: var(--blue-pale);
+    color: var(--navy-deep);
     border-bottom: 1px solid var(--cyan-light);
     white-space: nowrap;
 }
 tbody tr { border-bottom: 1px solid var(--slate-100); transition: background var(--ease); }
 tbody tr:last-child { border-bottom: none; }
-tbody tr:hover { background: var(--cyan-pale); }
+tbody tr:hover { background-color: var(--bg-soft);
+    border-left: 4px solid var(--blue-bright); }
 tbody td { padding: 13px 18px; color: var(--slate-600); vertical-align: middle; }
 .td-id   { font-weight: 700; color: var(--cyan-deeper); font-size: .8rem; }
 .td-bold { font-weight: 600; color: var(--slate-800); }
@@ -577,12 +596,14 @@ tbody td { padding: 13px 18px; color: var(--slate-600); vertical-align: middle; 
     box-shadow: 0 0 0 3px rgba(77,217,213,.18); background: #fff;
 }
 .rx-search-btn {
-    padding: 9px 20px; background: var(--cyan); color: #fff;
+    padding: 9px 20px; 
+    background-color: var(--blue-main);
+    color: white;
     border-radius: var(--radius-sm); font-family: var(--font);
     font-size: .88rem; font-weight: 700; border: none; cursor: pointer;
     transition: background var(--ease);
 }
-.rx-search-btn:hover { background: var(--cyan-dark); }
+.rx-search-btn:hover { background-color: var(--blue-dark);}
 
 /* Medicine table */
 .rx-med-table-wrap { overflow-x: auto; min-height: 150px; }
@@ -636,19 +657,20 @@ tbody td { padding: 13px 18px; color: var(--slate-600); vertical-align: middle; 
 /* Buttons */
 .rx-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 .btn-primary {
-    padding: 12px 26px; background: var(--cyan-dark); color: #fff;
+    padding: 12px 26px; background-color: var(--blue-main);
+    color: white;
     border-radius: var(--radius-sm); border: none; cursor: pointer;
     font-family: var(--font); font-size: .9rem; font-weight: 700;
     transition: background var(--ease), box-shadow var(--ease);
 }
-.btn-primary:hover { background: var(--cyan-deeper); box-shadow: var(--shadow-md); }
+.btn-primary:hover { background-color: var(--blue-dark); box-shadow: var(--shadow-md); }
 .btn-secondary {
-    padding: 12px 26px; background: var(--cyan-pale); color: var(--cyan-deeper);
-    border-radius: var(--radius-sm); border: 1.5px solid var(--cyan-light); cursor: pointer;
+    padding: 12px 26px; background-color: var(--blue-pale); color: var(--blue-dark);
+    border-radius: var(--radius-sm); border: 1.5px solid var(--blue-light); cursor: pointer;
     font-family: var(--font); font-size: .9rem; font-weight: 700;
     transition: background var(--ease);
 }
-.btn-secondary:hover { background: var(--cyan-light); }
+.btn-secondary:hover { background-color: var(--blue-light); }
 
 /* Review card */
 .rx-review-wrap { max-width: 660px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
