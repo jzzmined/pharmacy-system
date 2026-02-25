@@ -156,47 +156,6 @@ button:hover {
     background: #5a67d8;
 }
 
-/* Signup text */
-.btn-signup {
-   display: block;
-    width: 95%;
-    margin: 10px auto 20px auto;
-    padding: 14px;
-    background: #071c7c;
-    border: none;
-    border-radius: 50px;
-    color: #fff;
-    font-size: 16px;
-    cursor: pointer;
-    transition: background 0.3s ease;
-}
-
-.btn-signup:hover {
-    background: #5a67d8;
-}
-
-.btn-signup a {
-    color: #ffffff;
-    text-decoration: none;
-}
-
-.signup {
-    font-size: 16px;
-    text-align: center;
-    margin-top: 15px;
-    text-decoration: none;
-    color: white;
-}
-
-.signup a {
-    color: white;
-    text-decoration: none;
-}
-
-.signup a:hover {
-    text-decoration: underline;
-}
-
 /* Responsive */
 @media (max-width: 480px) {
     .Log_card {
