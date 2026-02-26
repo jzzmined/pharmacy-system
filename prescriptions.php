@@ -132,7 +132,7 @@ function stockClass(int $s): string
 
             <div class="page-body">
 
-                <!-- ══ STEP WIZARD — matches wireframe exactly ══ -->
+                <!-- ══ STEP WIZARD ══ -->
                 <div class="rx-wizard">
                     <div class="rx-step active" id="ind1">
                         <div class="step-num">1</div>
@@ -185,82 +185,75 @@ function stockClass(int $s): string
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            <!-- <div class="rx-field">
-                            <input type="text" class="rx-input" id="ptCondition"
-                                   placeholder="Diagnosis / Condition">
-                        </div> -->
                             <div class="rx-field">
                                 <input type="text" class="rx-input" id="ptContact" placeholder="Contact number">
                             </div>
                         </div>
 
                         <!-- RIGHT: Medicine selector -->
-                        <div>
-                            <div class="rx-med-card">
-                                <div class="rx-med-header">
-                                    <h3>Select Medicines</h3>
-                                </div>
+                        <div class="rx-med-card">
+                            <div class="rx-med-header">
+                                <h3>Select Medicines</h3>
+                            </div>
 
-                                <div class="rx-search-row">
-                                    <input type="text" class="rx-search-input" id="medSearch" placeholder="Search...">
-                                    <!-- <button class="rx-search-btn" onclick="filterMeds()">Search</button> -->
-                                </div>
+                            <div class="rx-search-row">
+                                <input type="text" class="rx-search-input" id="medSearch" placeholder="Search...">
+                            </div>
 
-                                <div class="rx-med-table-wrap">
-                                    <table class="rx-med-table">
-                                        <thead>
-                                            <tr>
-                                                <th>✓</th>
-                                                <th>Generic Name</th>
-                                                <th>Brand</th>
-                                                <th>Stock</th>
-                                                <th>Expiry</th>
-                                                <th>Manufacturer</th>
+                            <div class="rx-med-table-wrap">
+                                <table class="rx-med-table">
+                                    <thead>
+                                        <tr>
+                                            <th>✓</th>
+                                            <th>Generic Name</th>
+                                            <th>Brand</th>
+                                            <th>Stock</th>
+                                            <th>Expiry</th>
+                                            <th>Manufacturer</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="medTbody">
+                                        <?php foreach ($medicines as $m): ?>
+                                            <tr class="med-row"
+                                                data-search="<?= strtolower(htmlspecialchars($m['GenericName'] . ' ' . $m['BrandName'])) ?>">
+                                                <td>
+                                                    <input type="checkbox" class="rx-check"
+                                                        value="<?= $m['MedicationID'] ?>"
+                                                        data-name="<?= htmlspecialchars($m['GenericName']) ?>"
+                                                        data-brand="<?= htmlspecialchars($m['BrandName']) ?>"
+                                                        data-strength="<?= htmlspecialchars($m['DosageStrength']) ?>"
+                                                        data-stock="<?= (int) $m['Stock'] ?>"
+                                                        onchange="toggleMed(this)">
+                                                </td>
+                                                <td>
+                                                    <span
+                                                        style="font-weight:600;color:#1e293b"><?= htmlspecialchars($m['GenericName']) ?></span>
+                                                    <span
+                                                        style="font-size:.78rem;color:#94a3b8;margin-left:4px"><?= htmlspecialchars($m['DosageStrength']) ?></span>
+                                                </td>
+                                                <td style="color:#94a3b8;font-size:.83rem">
+                                                    <?= htmlspecialchars($m['BrandName']) ?>
+                                                </td>
+                                                <td class="<?= stockClass((int) $m['Stock']) ?>">
+                                                    <?= (int) $m['Stock'] ?>
+                                                </td>
+                                                <td style="font-size:.81rem;color:#94a3b8">
+                                                    <?= htmlspecialchars($m['NearestExpiry'] ?? '—') ?>
+                                                </td>
+                                                <td style="font-size:.81rem;color:#94a3b8">
+                                                    <?= htmlspecialchars($m['Manufacturer'] ?? '—') ?>
+                                                </td>
                                             </tr>
-                                        </thead>
-                                        <tbody id="medTbody">
-                                            <?php foreach ($medicines as $m): ?>
-                                                <tr class="med-row"
-                                                    data-search="<?= strtolower(htmlspecialchars($m['GenericName'] . ' ' . $m['BrandName'])) ?>">
-                                                    <td>
-                                                        <input type="checkbox" class="rx-check"
-                                                            value="<?= $m['MedicationID'] ?>"
-                                                            data-name="<?= htmlspecialchars($m['GenericName']) ?>"
-                                                            data-brand="<?= htmlspecialchars($m['BrandName']) ?>"
-                                                            data-strength="<?= htmlspecialchars($m['DosageStrength']) ?>"
-                                                            data-stock="<?= (int) $m['Stock'] ?>"
-                                                            onchange="toggleMed(this)">
-                                                    </td>
-                                                    <td>
-                                                        <span
-                                                            style="font-weight:600;color:#1e293b"><?= htmlspecialchars($m['GenericName']) ?></span>
-                                                        <span
-                                                            style="font-size:.78rem;color:#94a3b8;margin-left:4px"><?= htmlspecialchars($m['DosageStrength']) ?></span>
-                                                    </td>
-                                                    <td style="color:#94a3b8;font-size:.83rem">
-                                                        <?= htmlspecialchars($m['BrandName']) ?>
-                                                    </td>
-                                                    <td class="<?= stockClass((int) $m['Stock']) ?>">
-                                                        <?= (int) $m['Stock'] ?>
-                                                    </td>
-                                                    <td style="font-size:.81rem;color:#94a3b8">
-                                                        <?= htmlspecialchars($m['NearestExpiry'] ?? '—') ?>
-                                                    </td>
-                                                    <td style="font-size:.81rem;color:#94a3b8">
-                                                        <?= htmlspecialchars($m['Manufacturer'] ?? '—') ?>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
                             </div>
+                        </div>
 
-                            <!-- Selected medicines summary -->
-                            <div class="rx-selected-card" id="selCard" style="display:none">
-                                <h4>Selected Medicines (<span id="selCount">0</span>)</h4>
-                                <div id="selList"></div>
-                            </div>
+                        <!-- FULL WIDTH: Selected medicines summary — spans both columns -->
+                        <div class="rx-selected-card" id="selCard" style="display:none">
+                            <h4>Selected Medicines (<span id="selCount">0</span>)</h4>
+                            <div id="selList"></div>
                         </div>
 
                     </div><!-- /rx-body -->
@@ -413,7 +406,7 @@ function stockClass(int $s): string
             document.getElementById('rv-age').textContent = age + ' years old';
             document.getElementById('rv-gender').textContent = gender;
             document.getElementById('rv-doctor').textContent = doctor.options[doctor.selectedIndex].text;
-            document.getElementById('rv-condition').textContent = document.getElementById('ptCondition').value.trim() || '—';
+            document.getElementById('rv-condition').textContent = '—';
             document.getElementById('rv-contact').textContent = document.getElementById('ptContact').value.trim() || '—';
             document.getElementById('rv-meds').innerHTML = Object.values(sel).map(m =>
                 `<div class="review-row">
@@ -446,7 +439,7 @@ function stockClass(int $s): string
                 patient_age: document.getElementById('ptAge').value.trim(),
                 patient_gender: document.getElementById('ptGender').value,
                 doctor_id: document.getElementById('ptDoctor').value,
-                medical_condition: document.getElementById('ptCondition').value.trim(),
+                medical_condition: '',
                 contact: document.getElementById('ptContact').value.trim(),
                 medicines: Object.entries(sel).map(([id, m]) => ({ medication_id: id, quantity: m.qty }))
             };
@@ -489,4 +482,4 @@ function stockClass(int $s): string
 
 </body>
 
-</html>
+</html> 
