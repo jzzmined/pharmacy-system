@@ -10,12 +10,11 @@
     </button>
 
     <div class="topbar-title">
-        <!-- <span class="topbar-system">PharmaCare</span> -->
         <div class="topbar-page"><?= htmlspecialchars($page_title) ?></div>
     </div>
 
     <!-- <div class="topbar-right">
-        <!-- <span class="topbar-clock" id="liveClock">--:--:--</span>
+        <span class="topbar-clock" id="liveClock"></span>
         <span class="topbar-date"><?= date('D, M j Y') ?></span> -->
 
         <!-- Notification -->
@@ -42,7 +41,7 @@
                 <polyline points="16 17 21 12 16 7"/>
                 <line x1="21" y1="12" x2="9" y2="12"/>
             </svg>
-        </a> -->
-    <!-- </div> --> 
+        </a>
+    </div> -->
 
 </header>
