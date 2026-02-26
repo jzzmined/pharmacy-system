@@ -33,7 +33,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
     font-family: var(--font);
-    background-color: #d8ebf1;
+    background-color: #FFFFFF4D;
     color: var(--slate-700);
     min-height: 100vh;
     overflow-x: hidden;
@@ -470,7 +470,8 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
     background: #1a3460;
     border-radius: 50px;
     padding: 13px 36px;
-    margin-bottom: 22px;
+    margin-bottom: 15px;
+    margin-top: auto;
 }
 
 .rx-step {
@@ -525,6 +526,7 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
     border-radius: 16px;
     padding: 24px 22px;
     border: 1px solid #e2e8f0;
+    height: 350px;
 }
 .rx-patient-card h3 {
     font-size: 1rem; font-weight: 700; color: #111827;
@@ -563,8 +565,9 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
 .rx-med-card {
     background: #fff;
     border-radius: 16px;
-    border: 1px solid #e2e8f0;
     overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    height: 350px;
 }
 .rx-med-header { padding: 18px 22px 14px; border-bottom: 1px solid #f1f5f9; }
 .rx-med-header h3 { font-size: 1rem; font-weight: 700; color: #111827; }
@@ -628,10 +631,10 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
     position: sticky; top: 0; z-index: 10;
     padding: 10px 12px;
     text-align: left;
-    font-size: .6rem; font-weight: 800;
+    font-size: .7rem; font-weight: 700;
     text-transform: uppercase; letter-spacing: .08em;
-    color: #2a7a8a;
-    background: #a8e6ef;
+    color: #000000;
+    background: #8BF6FE;
     border-bottom: 1px solid var(--cyan-border);
     white-space: nowrap;
 }
