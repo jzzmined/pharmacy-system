@@ -186,7 +186,7 @@ function stockClass(int $s): string
                                 </select>
                             </div>
                             <div class="rx-field">
-                                <input type="text" class="rx-input" id="ptContact" placeholder="Contact number">
+                                <input type="text" class="rx-input" id="ptContact" placeholder="Contact Information">
                             </div>
                         </div>
 

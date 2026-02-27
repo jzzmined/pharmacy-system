@@ -549,7 +549,7 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
     transition: border-color var(--ease), box-shadow var(--ease);
     appearance: none;
 }
-.rx-input::placeholder { color: #000000; }
+.rx-input::placeholder { color: #9c9c9c; }
 .rx-input:focus, .rx-select:focus {
     outline: none;
     border-color: var(--blue-main);
@@ -680,8 +680,10 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
 .sel-qty-ctrl {
     display: flex; align-items: center;
     background: #1e2d40;
-    border-radius: 20px; overflow: hidden; height: 26px;
+    border-radius: 999px; overflow: hidden; height: 30px;
+    padding: 0 4px;
 }
+
 .sel-qty-btn {
     width: 24px; height: 26px; color: #fff; font-size: 14px;
     display: flex; align-items: center; justify-content: center;
