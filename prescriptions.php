@@ -286,7 +286,7 @@ function stockClass(int $s): string {
 </div><!-- /app-layout -->
 
 <div class="toast-tray" id="toastTray"></div>
-<script src="assests/js/dashboard.js"></script>
+<script src="assets/js/dashboard.js"></script>
 
 <script>
     const sel = {};

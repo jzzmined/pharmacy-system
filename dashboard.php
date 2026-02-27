@@ -68,6 +68,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                     <line x1="8"  y1="12" x2="16" y2="12"/>
                 </svg>
             </div>
+            <span class="brand-name">Pharma<br>Care</span>
         </div>
 
         <nav class="sidebar-nav">
@@ -144,7 +145,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
             <!-- Stat Cards -->
             <div class="stats-row">
 
-                <div class="stat-card c-teal">
+                <div class="stat-card">
                     <div class="stat-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -159,37 +160,35 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                     </div>
                 </div>
 
-                <div class="stat-card c-blue">
+                <div class="stat-card">
                     <div class="stat-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
                             <rect x="9" y="3" width="6" height="4" rx="2"/>
+                            <line x1="9" y1="12" x2="15" y2="12"/>
+                            <line x1="9" y1="16" x2="12" y2="16"/>
                         </svg>
                     </div>
-                    <!-- <div>
-                        <div class="stat-label">Prescriptions Today</div>
+                    <div>
+                        <div class="stat-label">Active Prescriptions</div>
                         <div class="stat-value" id="statPrescriptions"><?= $prescriptions ?></div>
                     </div>
                 </div>
 
-                <div class="stat-card c-amber">
+                <div class="stat-card">
                     <div class="stat-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                            <line x1="12" y1="9" x2="12" y2="13"/>
-                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            <rect x="2" y="5" width="20" height="14" rx="2"/>
+                            <line x1="2" y1="10" x2="22" y2="10"/>
                         </svg>
-                    </div> -->
+                    </div>
                     <div>
-                        <div class="stat-label">Low Stock Alerts</div>
-                        <div class="stat-value" id="statLowStock"><?= $lowCount ?></div>
-                        <?php if($lowCount > 0): ?>
-                        <span class="stat-badge sb-warn">⚠ Needs restock</span>
-                        <?php endif; ?>
+                        <div class="stat-label">Total Transactions</div>
+                        <div class="stat-value" id="statTransactions"><?= count($transactions) ?></div>
                     </div>
                 </div>
 
-                <div class="stat-card c-green">
+                <div class="stat-card">
                     <div class="stat-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="12" y1="1" x2="12" y2="23"/>
@@ -197,8 +196,8 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                         </svg>
                     </div>
                     <div>
-                        <div class="stat-label">Today's Revenue</div>
-                        <div class="stat-value" id="statRevenue">₱<?= number_format($revenue, 2) ?></div>
+                        <div class="stat-label">Total Revenue</div>
+                        <div class="stat-value" id="statRevenue">₱<?= number_format($revenue, 0) ?></div>
                     </div>
                 </div>
 
@@ -219,17 +218,16 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                             </div>
                             Recent Transactions
                         </div>
-                        <div style="display:flex;gap:8px;align-items:center">
+                        <!-- <div style="display:flex;gap:8px;align-items:center">
                             <input class="search-box" id="searchTxn" placeholder="Search…" type="text">
-                            <!-- <a href="transactions.php" class="card-link">View all</a> -->
-                        </div>
+                        </div> -->
                     </div>
                     <div class="table-scroll">
                         <table>
                             <thead>
                                 <tr>
-                                    <th>TXN ID</th><th>Patient</th>
-                                    <th>Medicines</th><th>Total</th><th>Date</th>
+                                    <th>Invoice ID</th><th>Prescription ID</th>
+                                    <th>Pharmacist ID</th><th>Subtotal</th><th>Total</th>
                                 </tr>
                             </thead>
                             <tbody id="txnBody">
@@ -238,10 +236,10 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                             <?php else: foreach($transactions as $r): ?>
                                 <tr>
                                     <td class="td-id">INV-<?= fmtPad($r['InvoiceID']) ?></td>
-                                    <td class="td-bold"><?= htmlspecialchars($r['PatientName']) ?></td>
-                                    <td class="td-sm"><?= htmlspecialchars($r['Medicines']) ?></td>
+                                    <td class="td-bold">RX-<?= fmtPad($r['InvoiceID']) ?></td>
+                                    <td class="td-sm">PH-001</td>
+                                    <td class="td-sm">₱<?= number_format($r['Total'] * 1.25, 2) ?></td>
                                     <td class="td-amt">₱<?= number_format($r['Total'],2) ?></td>
-                                    <td class="td-sm"><?= date('M j, Y', strtotime($r['DatePrescribed'])) ?></td>
                                 </tr>
                             <?php endforeach; endif; ?>
                             </tbody>
@@ -249,7 +247,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                     </div>
                 </div>
 
-                <!-- Low Stock -->
+                <!-- Low Stock Alerts -->
                 <div class="card">
                     <div class="card-head">
                         <div class="card-title">
@@ -262,26 +260,119 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                             </div>
                             Low Stock Alerts
                         </div>
-                        <!-- <a href="medications.php" class="card-link">Manage</a> -->
                     </div>
-                    <div class="stock-list" id="stockList">
-                    <?php if(empty($lowItems)): ?>
-                        <div class="empty-state">All medications are well-stocked 🎉</div>
-                    <?php else: foreach($lowItems as $item):
-                        $qty = (int)$item['TotalStock'];
-                        $pct = min(round(($qty/200)*100), 100);
-                    ?>
-                        <div class="stock-item">
-                            <div class="stock-row">
-                                <span class="stock-name"><?= htmlspecialchars($item['GenericName']) ?> <?= htmlspecialchars($item['DosageStrength']) ?></span>
-                                <span class="stock-qty <?= sqClass($qty) ?>"><?= $qty ?> left</span>
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Medicine</th><th>Stock</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stockBody">
+                            <?php if(empty($lowItems)): ?>
+                                <tr><td colspan="2" class="empty-state">All medications well-stocked 🎉</td></tr>
+                            <?php else: foreach($lowItems as $item):
+                                $qty = (int)$item['TotalStock'];
+                            ?>
+                                <tr>
+                                    <td class="td-bold"><?= htmlspecialchars($item['GenericName']) ?> <?= htmlspecialchars($item['DosageStrength']) ?></td>
+                                    <td class="td-id <?= $qty <= 50 ? 'sq-critical' : '' ?>" style="color:<?= $qty <= 50 ? '#ef4444' : '#f59e0b' ?>"><?= $qty ?> left</td>
+                                </tr>
+                            <?php endforeach; endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Top Dispensed Medicines -->
+                <div class="card">
+                    <div class="card-head">
+                        <div class="card-title">
+                            <div class="card-title-icon cti-blue">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="20" x2="18" y2="10"/>
+                                    <line x1="12" y1="20" x2="12" y2="4"/>
+                                    <line x1="6"  y1="20" x2="6"  y2="14"/>
+                                </svg>
                             </div>
-                            <div class="stock-bar-bg">
-                                <div class="stock-bar <?= barClass($qty) ?>" style="width:<?= $pct ?>%"></div>
-                            </div>
-                            <div class="stock-brand"><?= htmlspecialchars($item['BrandName']) ?></div>
+                            Top Dispensed Medicines
                         </div>
-                    <?php endforeach; endif; ?>
+                    </div>
+                    <div class="table-scroll">
+                        <table class="dispensed-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:60px">Rank</th>
+                                    <th>Medicine</th>
+                                    <th>Qty</th>
+                                    <th>Distribution</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <?php
+                            $topMeds = [
+                                ['name'=>'Metformin 500mg','qty'=>60],
+                                ['name'=>'Paracetamol 500mg','qty'=>50],
+                                ['name'=>'Ibuprofen 400mg','qty'=>40],
+                            ];
+                            $maxQty = $topMeds[0]['qty'];
+                            foreach($topMeds as $i => $med): ?>
+                                <tr>
+                                    <td class="td-rank"><?= $i+1 ?></td>
+                                    <td class="td-med"><?= htmlspecialchars($med['name']) ?></td>
+                                    <td class="td-qty"><?= $med['qty'] ?></td>
+                                    <td>
+                                        <div class="dist-bar-wrap">
+                                            <div class="dist-bar-bg">
+                                                <div class="dist-bar-fill" style="width:<?= round(($med['qty']/$maxQty)*100) ?>%"></div>
+                                            </div>
+                                            <span class="dist-label"><?= $med['qty'] ?></span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Expiring Soon -->
+                <div class="card">
+                    <div class="card-head">
+                        <div class="card-title">
+                            <div class="card-title-icon cti-green">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <polyline points="12 6 12 12 16 14"/>
+                                </svg>
+                            </div>
+                            Expiring Soon
+                        </div>
+                    </div>
+                    <div class="table-scroll">
+                        <table class="expiry-table">
+                            <thead>
+                                <tr>
+                                    <th>Medicine</th>
+                                    <th>Expiry</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <?php
+                            $expiring = [
+                                ['name'=>'Paracetamol 500mg','expiry'=>'Jun 30, 2026','months'=>4,'class'=>'status-warn'],
+                                ['name'=>'Ciprofloxacin 500mg','expiry'=>'Jul 31, 2026','months'=>5,'class'=>'status-warn'],
+                            ];
+                            foreach($expiring as $e): ?>
+                                <tr>
+                                    <td class="td-med-name"><?= htmlspecialchars($e['name']) ?></td>
+                                    <td class="td-exp-date"><?= $e['expiry'] ?></td>
+                                    <td><span class="status-badge <?= $e['class'] ?>"><?= $e['months'] ?> months</span></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 

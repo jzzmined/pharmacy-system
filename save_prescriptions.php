@@ -1,8 +1,24 @@
 <?php
+session_start();
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/config.php';
 
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'message' => 'Unauthenticated.']);
+    exit;
+}
+
 header('Content-Type: application/json');
+
+// ── TEMPORARY DEBUG ──
+try {
+    $db = getDB();
+    echo json_encode(['success' => false, 'message' => 'DB connected OK, reached debug point.']);
+} catch (Throwable $e) {
+    echo json_encode(['success' => false, 'message' => 'DB error: ' . $e->getMessage()]);
+}
+exit;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Invalid request method.']);
