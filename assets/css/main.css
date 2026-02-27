@@ -527,7 +527,7 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
     border-radius: 16px;
     padding: 20px 18px;
     border: 1px solid #e2e8f0;
-    height: 350px;
+    height: 380px;
     box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.25);
 }
 .rx-patient-card h3 {
@@ -541,7 +541,7 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
     width: 100%;
     padding: 11px 16px;
     border: 1.5px solid #d1d9e3;
-    border-radius: 12px;
+    border-radius: 25px;
     background: #fff;
     font-family: var(--font);
     font-size: .9rem;
@@ -587,7 +587,7 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
     flex: 1;
     padding: 10px 14px 10px 38px;
     border: 1.5px solid #d1d9e3;
-    border-radius: 10px;
+    border-radius: 25px;
     font-family: var(--font); font-size: .88rem;
     background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' fill='none' stroke='%2394a3b8' stroke-width='2' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 12px center;
     color: #374151;
@@ -663,8 +663,7 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
     border-radius: 16px;
     padding: 16px 20px;
     border: 1px solid #e2e8f0;
-    margin-top: 20px;
-    grid-column: 1 / -1;
+    margin-top: 0px;
     box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.25);
 }
 .rx-selected-card h4 { font-size: .9rem; font-weight: 700; color: #111827; margin-bottom: 10px; }
@@ -705,16 +704,16 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
 .sel-qty:focus { outline: none; border-color: #1e2d40; background: #1e2d40; color: #fff; border-radius: 30px; }
 
 /* ── Action buttons ── */
-.rx-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.rx-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 .btn-primary {
     padding: 12px 26px; background: #1e2d40; color: #fff;
     border-radius: var(--radius-sm); border: none; cursor: pointer; 
     font-family: var(--font); font-size: .9rem; font-weight: 700;
     transition: background var(--ease);
 }
-.btn-primary:hover { background: var(--blue-header); }e
+.btn-primary:hover { background: #B3C8CF;}
 .btn-secondary {
-    padding: 12px 26px; background: var(--cyan-pale); color: #0e7490;
+    padding: 12px 26px; background: var(--white); color: #0e7490;
     border-radius: var(--radius-sm); border: 1.5px solid var(--cyan-border);
     cursor: pointer; font-family: var(--font); font-size: .9rem; font-weight: 700;
     transition: background var(--ease);
@@ -722,18 +721,32 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
 .btn-secondary:hover { background: #b2f0f8; }
 
 /* ── Review card ── */
-.rx-review-wrap { max-width: 660px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
-.rx-review-card { background: #fff; border-radius: var(--radius); border: 1px solid #e2e8f0; padding: 26px; }
-.rx-review-card h3 {
-    font-size: 1rem; font-weight: 700; color: #1e293b;
-    margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;
+.rx-review-wrap { display: flex; flex-direction: row; gap: 16px; align-items: stretch;}
+.rx-review-card { flex: 1; display: flex; flex-direction: column; height: 350px; overflow: hidden; background: #fff; 
+    border-radius: var(--radius); 
+    border: 1px solid #e2e8f0; padding: 26px;
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.25); 
 }
+#rv-meds { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cbd5e1 #f8fafc; }
+#rv-meds::-webkit-scrollbar { width: 5px; }
+#rv-meds::-webkit-scrollbar-track { background: #f8fafc; }
+#rv-meds::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+.rx-review-card h3 {
+    font-size: 1rem; font-weight: 700; color: #ffffff;
+    margin-bottom: 16px; padding: 14px 18px;
+    background: #1e2d40;
+    margin: -26px -26px 16px -26px;
+    flex-shrink: 0;
+    border-radius: var(--radius) var(--radius) 0 0;
+}
+
 .review-row {
     display: flex; justify-content: space-between; align-items: flex-start;
     padding: 9px 0; border-bottom: 1px solid #f1f5f9; font-size: .875rem;
 }
 .review-row:last-child { border-bottom: none; }
-.review-key   { color: #94a3b8; font-weight: 500; min-width: 140px; }
+.review-key   { color: #040404; font-weight: 500; min-width: 140px; }
 .review-value { color: #1e293b; font-weight: 600; text-align: right; }
 .rx-wizard
 .rx-result { padding: 14px 18px; border-radius: var(--radius-sm); font-size: .875rem; font-weight: 600; margin-top: 14px; }
