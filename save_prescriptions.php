@@ -4,13 +4,11 @@ require_once __DIR__ . '/includes/config.php';
 
 header('Content-Type: application/json');
 
-/* Only accept POST */
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Invalid request method.']);
     exit;
 }
 
-/* Read JSON body */
 $body = file_get_contents('php://input');
 $data = json_decode($body, true);
 
@@ -19,7 +17,6 @@ if (!$data) {
     exit;
 }
 
-/* Validate required fields */
 $required = ['patient_name', 'patient_age', 'patient_gender', 'doctor_id', 'medicines'];
 foreach ($required as $field) {
     if (empty($data[$field])) {
@@ -37,54 +34,52 @@ try {
     $db = getDB();
     $db->beginTransaction();
 
-    /* 1. Insert prescription */
-    $stmt = $db->prepare("
-        INSERT INTO prescriptions 
-            (PatientName, PatientAge, PatientGender, DoctorID, MedicalCondition, ContactInfo, PrescriptionDate, ValidUntil, Status)
-        VALUES 
-            (:name, :age, :gender, :doctor_id, :condition, :contact, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), 'Active')
+    /* 1. Insert patient */
+    $patientStmt = $db->prepare("
+        INSERT INTO patients (FullName, Age, Gender, ContactInfo, MedicalConditions)
+        VALUES (?, ?, ?, ?, ?)
     ");
-    $stmt->execute([
-        ':name'      => trim($data['patient_name']),
-        ':age'       => (int) $data['patient_age'],
-        ':gender'    => $data['patient_gender'],
-        ':doctor_id' => (int) $data['doctor_id'],
-        ':condition' => trim($data['medical_condition'] ?? ''),
-        ':contact'   => trim($data['contact'] ?? ''),
+    $patientStmt->execute([
+        trim($data['patient_name']),
+        (int) $data['patient_age'],
+        $data['patient_gender'],
+        trim($data['contact'] ?? ''),
+        trim($data['medical_condition'] ?? ''),
+    ]);
+
+    $patientId = $db->lastInsertId();
+
+    /* 2. Build medicines JSON */
+    $medicinesJson = json_encode(
+        array_map(fn($med) => [
+            'medication_id' => (int) $med['medication_id'],
+            'quantity'      => max(1, (int) $med['quantity'])
+        ], $data['medicines'])
+    );
+
+    /* 3. Insert prescription */
+    $rxStmt = $db->prepare("
+        INSERT INTO prescriptions (DatePrescribed, ExpirationDate, DoctorID, PatientID, Medicines)
+        VALUES (CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), ?, ?, ?)
+    ");
+    $rxStmt->execute([
+        (int) $data['doctor_id'],
+        $patientId,
+        $medicinesJson,
     ]);
 
     $prescriptionId = $db->lastInsertId();
 
-    /* 2. Insert prescription items & deduct stock */
-    $itemStmt = $db->prepare("
-        INSERT INTO prescriptionitems (PrescriptionID, MedicationID, Quantity)
-        VALUES (:prescription_id, :medication_id, :quantity)
-    ");
-
-    $stockStmt = $db->prepare("
-        UPDATE medicationdetails
-        SET StockAvailability = StockAvailability - :qty
-        WHERE MedicationID = :med_id
-        AND StockAvailability >= :qty
-        LIMIT 1
-    ");
-
+    /* 4. Deduct stock for each medicine */
     foreach ($data['medicines'] as $med) {
-        $medId = (int) $med['medication_id'];
         $qty   = max(1, (int) $med['quantity']);
-
-        /* Insert item */
-        $itemStmt->execute([
-            ':prescription_id' => $prescriptionId,
-            ':medication_id'   => $medId,
-            ':quantity'        => $qty,
-        ]);
-
-        /* Deduct stock */
-        $stockStmt->execute([
-            ':qty'    => $qty,
-            ':med_id' => $medId,
-        ]);
+        $medId = (int) $med['medication_id'];
+        $db->prepare("
+            UPDATE medicationdetails
+            SET StockAvailability = StockAvailability - ?
+            WHERE MedicationID = ? AND StockAvailability >= ?
+            LIMIT 1
+        ")->execute([$qty, $medId, $qty]);
     }
 
     $db->commit();
@@ -96,9 +91,7 @@ try {
     ]);
 
 } catch (Throwable $e) {
-    if ($db->inTransaction()) {
-        $db->rollBack();
-    }
+    if ($db->inTransaction()) $db->rollBack();
     echo json_encode([
         'success' => false,
         'message' => 'Database error: ' . $e->getMessage()

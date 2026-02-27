@@ -279,8 +279,10 @@ function stockClass(int $s): string
                                     id="rv-age">—</span></div>
                             <div class="review-row"><span class="review-key">Gender</span> <span class="review-value"
                                     id="rv-gender">—</span></div>
-                            <div class="review-row"><span class="review-key">Doctor</span> <span class="review-value"
+                                    <!-- condition -->
+                            <div class="review-row"><span class="review-key">Doctor</span> <span class="review-value" 
                                     id="rv-doctor">—</span></div>
+                                    <!-- doctor -->
                             <div class="review-row"><span class="review-key">Condition</span> <span class="review-value"
                                     id="rv-condition">—</span></div>
                             <div class="review-row"><span class="review-key">Contact</span> <span class="review-value"
@@ -445,7 +447,7 @@ function stockClass(int $s): string
             };
 
             try {
-                const res = await fetch('save_prescription.php', {
+                const res = await fetch('save_prescriptions.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
