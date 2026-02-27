@@ -1,6 +1,6 @@
 <?php
-require_once __DIR__ . '/includes/auth.php';
-require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/config.php';
 
 $page_title = 'Prescription';
 
@@ -396,7 +396,7 @@ function stockClass(int $s): string {
         };
 
         try {
-            const res  = await fetch('save_prescriptions.php', {
+            const res  = await fetch('api/save_prescriptions.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)

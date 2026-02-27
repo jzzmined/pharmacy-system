@@ -1,6 +1,6 @@
 <?php
-require_once __DIR__ . '/includes/auth.php';
-require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/config.php';
 
 $page_title = 'Invoices';
 
@@ -83,40 +83,33 @@ function statusClass($s)
                     </svg>
                 </a>
 
-                <a href="prescriptions.php" class="nav-item" data-label="Prescriptions">
+                <a href="pages/prescriptions.php" class="nav-item" data-label="Prescriptions">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
                         <rect x="9" y="3" width="6" height="4" rx="2" />
                     </svg>
                 </a>
 
-                <a href="transactions.php" class="nav-item active" data-label="Transactions">
+                <a href="pages/transactions.php" class="nav-item active" data-label="Transactions">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="2" y="5" width="20" height="14" rx="2" />
                         <line x1="2" y1="10" x2="22" y2="10" />
                     </svg>
                 </a>
 
-                <a href="medications.php" class="nav-item" data-label="Medications">
+                <a href="pages/inventory.php" class="nav-item" data-label="Medications">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path
                             d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
                     </svg>
                 </a>
 
-                <a href="patients.php" class="nav-item" data-label="Patients">
+                <a href="pages/admin.php" class="nav-item" data-label="Patients">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                         <circle cx="9" cy="7" r="4" />
                         <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
                         <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                    </svg>
-                </a>
-
-                <a href="users.php" class="nav-item" data-label="Users">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="8" r="4" />
-                        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
                     </svg>
                 </a>
 

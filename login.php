@@ -1,31 +1,46 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Already logged in? Go straight to dashboard
+if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
+    header("Location: pages/dashboard.php");
+    exit;
+}
+
+require_once __DIR__ . '/includes/config.php';
+
 $error = '';
-$success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email'] ?? '');
+    $email    = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
-    $remember = isset($_POST['remember']);
-
-    $valid_email = 'user@example.com';
-    $valid_password = 'password123';
 
     if (empty($email) || empty($password)) {
         $error = 'Please fill in all fields.';
-    } elseif ($email === $valid_email && $password === $valid_password) {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-
-        // These MUST match the keys used in auth.php
-        $_SESSION['logged_in'] = true;
-        $_SESSION['full_name'] = 'Pharmacist';
-        $_SESSION['username'] = 'admin';
-
-        header("Location: dashboard.php");
-        exit;
     } else {
-        $error = 'Invalid email or password. Please try again.';
+        try {
+            $db = getDB();
+            $s  = $db->prepare("SELECT * FROM users WHERE Email = ? LIMIT 1");
+            $s->execute([$email]);
+            $user = $s->fetch();
+
+            if ($user && password_verify($password, $user['Password'])) {
+                $_SESSION['logged_in'] = true;
+                $_SESSION['full_name'] = $user['FullName'];
+                $_SESSION['username']  = $user['Username'];
+                $_SESSION['user_id']   = $user['UserID'];
+                $_SESSION['role']      = $user['Role'];
+
+                header("Location: dashboard.php");
+                exit;
+            } else {
+                $error = 'Invalid email or password. Please try again.';
+            }
+        } catch (Throwable $e) {
+            $error = 'Database error. Please try again.';
+        }
     }
 }
 ?>

@@ -1,6 +1,6 @@
 <?php
-require_once __DIR__ . '/includes/auth.php';
-require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/config.php';
 
 $page_title = 'Dashboard';
 
@@ -82,27 +82,27 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                 </svg>
             </a>
 
-            <a href="prescriptions.php" class="nav-item" data-label="Prescriptions">
+            <a href="pages/prescriptions.php" class="nav-item" data-label="Prescriptions">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
                     <rect x="9" y="3" width="6" height="4" rx="2"/>
                 </svg>
             </a>
 
-            <a href="transactions.php" class="nav-item" data-label="Transactions">
+            <a href="pages/transactions.php" class="nav-item" data-label="Transactions">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="1" x2="12" y2="23"/>
                     <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
                 </svg>
             </a>
 
-            <a href="inventory.php" class="nav-item" data-label="Medications">
+            <a href="pages/inventory.php" class="nav-item" data-label="Medications">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
                 </svg>
             </a>
 
-            <a href="admin.php" class="nav-item" data-label="Patients">
+            <a href="pages/admin.php" class="nav-item" data-label="Patients">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                     <circle cx="9" cy="7" r="4"/>
