@@ -645,13 +645,13 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
 
 .rx-med-table tbody tr { border-bottom: 1px solid #f1f5f9; transition: background var(--ease); }
 .rx-med-table tbody tr:last-child { border-bottom: none; }
-.rx-med-table tbody tr:hover { background: #f0fbfd; }
-.rx-med-table tbody tr.is-selected { background: #c8f5f5; }
+.rx-med-table tbody tr:hover { background: #B3C8CF; }
+.rx-med-table tbody tr.is-selected { background: #aad8f9; }
 
 .rx-med-table tbody td { padding: 12px 12px; color: #374151; vertical-align: middle; }
 .rx-med-table tbody td:first-child { text-align: center; }
 
-.rx-check { width: 18px; height: 18px; border-radius: 4px; cursor: pointer; accent-color: #1eb3c9; }
+.rx-check { width: 18px; height: 18px; border-radius: 4px; cursor: pointer; accent-color: #ffffff; }
 
 .med-ok   { color: #22c55e; font-weight: 700; }
 .med-low  { color: var(--amber); font-weight: 700; }
@@ -677,7 +677,7 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
 .sel-dose { font-size: .75rem; color: #94a3b8; }
 
 /* Quantity pill */
-.sel-qty-ctrl {
+.sel-qty {
     display: flex; align-items: center;
     background: #1e2d40;
     border-radius: 999px; overflow: hidden; height: 30px;
@@ -696,13 +696,11 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
 /* Legacy qty input */
 .sel-qty {
     width: 64px; padding: 5px 8px;
-    /* border: 1.5px solid var(--cyan-border); border-radius: 30px; */
     font-family: var(--font); font-size: .88rem; text-align: center;
-    background: #1e2d40; color: var(--white);
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
+    background: #1e2d40; color: #fff;
+    color-scheme: var(--slate-light);
     outline: none;
+    border: none;
 }
 .sel-qty:focus { outline: none; border-color: #1e2d40; background: #1e2d40; color: #fff; border-radius: 30px; }
 
