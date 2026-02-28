@@ -5,24 +5,23 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/config.php';
 
-function attemptLogin(string $license, string $fullname): bool {
+function attemptLogin($email, $password) {
     try {
         $db = getDB();
-        $s  = $db->prepare("
-            SELECT PharmacistID, FullName, LicenseNumber, Workplace
-            FROM pharmacists
-            WHERE LicenseNumber = ? AND FullName = ?
-            LIMIT 1
-        ");
-        $s->execute([trim($license), trim($fullname)]);
-        $pharmacist = $s->fetch(PDO::FETCH_ASSOC);
+        $s  = $db->prepare("SELECT * FROM users WHERE Email = ? AND Status = 'Active' LIMIT 1");
+        $s->execute([$email]);
+        $user = $s->fetch();
 
-        if ($pharmacist) {
-            $_SESSION['user_id']   = $pharmacist['PharmacistID'];
-            $_SESSION['full_name'] = $pharmacist['FullName'];
-            $_SESSION['license']   = $pharmacist['LicenseNumber'];
-            $_SESSION['workplace'] = $pharmacist['Workplace'];
-            $_SESSION['logged_in'] = true;
+        if ($user && password_verify($password, $user['Password'])) {
+            session_start();
+            $_SESSION['user_id']   = $user['UserID'];
+            $_SESSION['full_name'] = $user['FullName'];
+            $_SESSION['role']      = $user['Role'];
+
+            // Update last login
+            $u = $db->prepare("UPDATE users SET LastLogin = CURDATE() WHERE UserID = ?");
+            $u->execute([$user['UserID']]);
+
             return true;
         }
         return false;

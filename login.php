@@ -12,29 +12,32 @@ if (isLoggedIn()) {
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $license  = trim($_POST['license']  ?? '');
-    $fullname = trim($_POST['fullname'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $password = trim($_POST['password'] ?? '');
 
-    if (empty($license) || empty($fullname)) {
-        $error = 'Please enter both your License Number and Full Name.';
-    } elseif (attemptLogin($license, $fullname)) {
+    if (empty($email) || empty($password)) {
+        $error = 'Please enter both your Email and Password.';
+    } elseif (attemptLogin($email, $password)) {
         header('Location: /pharmacy-system/pages/dashboard.php');
         exit;
     } else {
-        $error = 'Invalid License Number or Full Name. Please try again.';
+        $error = 'Invalid Email or Password. Please try again.';
     }
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PharmaCare — Login</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=DM+Serif+Display&display=swap">
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=DM+Serif+Display&display=swap">
     <link rel="stylesheet" href="assets/css/login.css">
 </head>
+
 <body>
 
     <!-- ═══ LEFT: Brand Wordmark ═══ -->
@@ -60,29 +63,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <!-- Input MUST come before label for the CSS floating label to work -->
                 <div class="inputs">
-                    <input
-                        type="text"
-                        id="license"
-                        name="license"
-                        placeholder=" "
-                        value="<?= htmlspecialchars($_POST['license'] ?? '') ?>"
-                        autocomplete="username"
-                        required
-                    >
-                    <label for="license">License Number</label>
+                    <input type="email" id="email" name="email" placeholder=" "
+                        value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" autocomplete="username" required>
+                    <label for="email">Email Address</label>
                 </div>
 
                 <div class="pass">
-                    <input
-                        type="text"
-                        id="fullname"
-                        name="fullname"
-                        placeholder=" "
-                        value="<?= htmlspecialchars($_POST['fullname'] ?? '') ?>"
-                        autocomplete="name"
-                        required
-                    >
-                    <label for="fullname">Full Name</label>
+                    <input type="password" id="password" name="password" placeholder=" " autocomplete="current-password"
+                        required>
+                    <label for="password">Password</label>
                 </div>
 
                 <div class="opts">
@@ -100,4 +89,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
 </body>
+
 </html>

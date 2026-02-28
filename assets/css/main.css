@@ -368,7 +368,7 @@ ul     { list-style: none; }
 }
 
 /* ── Cards ── */
-.card { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+.card { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.25); }
 .card-head {
     display: flex; align-items: center; justify-content: space-between;
     background: #fff;
@@ -1287,7 +1287,7 @@ tbody td { padding: 13px 20px; color: #475569; vertical-align: middle; }
     background: #fff;
     border-radius: var(--radius);
     border: 1px solid #e2e8f0;
-    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.25);
     overflow: hidden;
 }
 
@@ -1504,7 +1504,7 @@ tbody td { padding: 13px 20px; color: #475569; vertical-align: middle; }
     background: #fff;
     border-radius: var(--radius);
     border: 1px solid #e2e8f0;
-    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.25);
     overflow: hidden;
 }
 .backup-header {
