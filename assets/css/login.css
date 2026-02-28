@@ -1,164 +1,275 @@
-/* all settings */
-* {
+/* ============================================================
+   PharmaCare — Login Page Styles
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=DM+Serif+Display&display=swap');
+
+/* ── Reset ── */
+*, *::before, *::after {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: 'Outfit', sans-serif;
 }
 
-/* Website background */
+/* ── Body ── */
 body {
     min-height: 100vh;
-    background: url(assets/images/bg-img.jpg) no-repeat center center/cover;
+    width: 100%;
+    background: linear-gradient(135deg, #b8cfe8 0%, #ccdff0 30%, #ddeaf6 55%, #c5d8ec 75%, #b0c8e0 100%);
     display: flex;
-    justify-content: flex-end;   /* move to right */
-    align-items: center;         /* keep vertically centered */
-    padding-right: 80px;         /* space from right edge */
-    font-family: 'Roboto', sans-serif;
-    font-size: 20px;
-    margin-left: 750px;
-    background-attachment: fixed;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 6vw;
+    font-family: 'Outfit', sans-serif;
+    overflow: hidden;
 }
 
-/* main container */
+/* ══════════════════════════════
+   LEFT — Brand Wordmark
+   ══════════════════════════════ */
+.brand-side {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    padding-left: 2vw;
+    user-select: none;
+    pointer-events: none;
+}
+
+.brand-name {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: clamp(3rem, 6vw, 5.2rem);
+    font-weight: 400;
+    color: #ffffff;
+    line-height: 1.08;
+    letter-spacing: -1px;
+    filter: drop-shadow(0 2px 12px rgba(80,110,150,0.20));
+}
+
+.brand-name .heart {
+    font-size: 0.62em;
+    vertical-align: middle;
+    display: inline-block;
+    margin-right: 4px;
+}
+
+/* ══════════════════════════════
+   RIGHT — Login Card
+   ══════════════════════════════ */
 .cons {
+    flex: 0 0 auto;
     width: 100%;
-    padding: 20px;
+    max-width: 420px;
 }
 
 .Log_card {
-    background: transparent;
-    max-width: 450px;
-    max-height: fit-content;
-    margin: auto;
-    padding: 40px;
-    border-radius: 15px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 5);
+    background: #f0ebe0;
+    border-radius: 24px;
+    padding: 48px 44px 40px;
+    box-shadow:
+        0 24px 60px rgba(60, 90, 130, 0.20),
+        0 4px 18px rgba(60, 90, 130, 0.10);
 }
 
-/* Header */
+/* Heading */
 .Log_card h1 {
     text-align: center;
-    font-weight: 600;
-    margin-bottom: 10px;
-    font-size: 28px;
-    color: rgb(3, 3, 99);
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 2rem;
+    color: #0d0d0d;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
 }
 
+/* Subtitle */
 .tag {
     text-align: center;
-    color: #ffffff;
-    margin-bottom: 30px;
+    color: #888;
+    font-size: 0.9rem;
+    font-weight: 400;
+    margin-bottom: 32px;
 }
 
-/* text field */
+/* Error banner */
+.login-error {
+    background: #fee2e2;
+    color: #991b1b;
+    border-radius: 10px;
+    padding: 11px 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ══════════════════════════════
+   Floating Label Inputs
+   Label starts INSIDE as placeholder,
+   floats to ABOVE the field on focus/fill
+   ══════════════════════════════ */
+
 .inputs,
-.input_1,
-.input_2,
 .pass {
     position: relative;
-    margin-bottom: 20px;
+    margin-bottom: 28px; /* extra space so the floated label doesn't overlap the field above */
+    margin-top: 8px;
 }
 
-
-/* Inputs */
+/* Input field */
 .inputs input,
-.input_1 input,
-.input_2 input,
-.dob input,
-.username input,
-.npass input,
 .pass input {
     width: 100%;
-    padding: 14px 15px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    font-size: 15px;
+    padding: 14px 22px;
+    border: 1.5px solid #c4bdb0;
+    border-radius: 50px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.95rem;
+    color: #333;
+    background: #f0ebe0;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
-.npass input {
-    margin-top: 10px;
-    margin-bottom: 20px;
+.inputs input::placeholder,
+.pass input::placeholder {
+    color: transparent; /* hidden — label acts as placeholder */
 }
 
-/* labels trans */
+.inputs input:focus,
+.pass input:focus {
+    border-color: #8a9bb0;
+    box-shadow: 0 0 0 3px rgba(100, 130, 170, 0.14);
+    background: #faf8f3;
+}
+
+/* ── Label: default state = centered inside input (acts as placeholder) ── */
 .inputs label,
-.input_1 label,
-.input_2 label,
 .pass label {
     position: absolute;
-    font-size: 18px;
-    left: 12px;
+    left: 22px;
     top: 50%;
     transform: translateY(-50%);
-    background: transparent;
-    padding: 0 6px;
-    color: #999;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.95rem;
+    color: #b0a898;
     pointer-events: none;
-    transition: 0.5s ease;
+    transition:
+        top 0.22s ease,
+        left 0.22s ease,
+        transform 0.22s ease,
+        font-size 0.22s ease,
+        color 0.22s ease,
+        font-weight 0.22s ease;
+    white-space: nowrap;
 }
 
-
-/* Floating label animation */
-.inputs input:focus+label,
-.inputs input:not(:placeholder-shown)+label {
-    top: -10px;
-    font-size: 15px;
-    color: white;
+/* ── Floated state: label moves ABOVE the input field ── */
+.inputs input:focus + label,
+.inputs input:not(:placeholder-shown) + label,
+.pass input:focus + label,
+.pass input:not(:placeholder-shown) + label {
+    top: -10px;           /* sits above the pill border */
+    left: 16px;
+    transform: translateY(-100%);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #5a7a9a;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
 }
 
-.pass input:focus+label,
-.pass input:not(:placeholder-shown)+label {
-    top: -10px;
-    font-size: 16px;
-    color: white;
-}
-
-
-
-/* Options row */
-.Gender,
+/* ── Options row ── */
 .opts {
     display: flex;
-    color: white;
     justify-content: space-between;
     align-items: center;
-    font-size: 14px;
-    margin-top: 10px;
-    margin-bottom: 25px;
+    font-size: 0.87rem;
+    margin-top: -8px;
+    margin-bottom: 28px;
+    color: #555;
+}
+
+.opts label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    color: #555;
+}
+
+.opts input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    accent-color: #1e2d40;
+    cursor: pointer;
 }
 
 .opts a {
-    color: white;
+    color: #555;
     text-decoration: none;
 }
 
 .opts a:hover {
+    color: #1e2d40;
     text-decoration: underline;
 }
 
-/* Button */
-button {
+/* ── Login button ── */
+button[type="submit"] {
     display: block;
-    width: 95%;
-    margin: 10px auto 20px auto;
-    padding: 14px;
-    background: #071c7c;
+    width: 100%;
+    padding: 15px;
+    background: #1e2d40;
     border: none;
     border-radius: 50px;
     color: #fff;
-    font-size: 16px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
     cursor: pointer;
-    transition: background 0.3s ease;
+    transition: background 0.25s, transform 0.1s;
 }
 
-button:hover {
-    background: #5a67d8;
+button[type="submit"]:hover {
+    background: #2d4460;
+    transform: translateY(-1px);
 }
 
-/* Responsive */
+button[type="submit"]:active {
+    transform: translateY(0);
+}
+
+/* ── Responsive ── */
+@media (max-width: 860px) {
+    body {
+        flex-direction: column;
+        justify-content: center;
+        gap: 48px;
+        padding: 48px 24px;
+        min-height: 100vh;
+    }
+    .brand-side {
+        align-items: center;
+        padding-left: 0;
+    }
+    .brand-name {
+        text-align: center;
+        font-size: clamp(2.5rem, 10vw, 4rem);
+    }
+    .cons {
+        max-width: 420px;
+        width: 100%;
+    }
+}
+
 @media (max-width: 480px) {
     .Log_card {
-        padding: 30px 20px;
+        padding: 36px 24px 28px;
     }
 }

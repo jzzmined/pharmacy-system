@@ -10,20 +10,19 @@ try {
     // Fetch all medication batches with stock details
     $s = $db->prepare("
         SELECT
-            md.MedicationDetailID,
+            md.MedDet,
             md.MedicationID,
             m.GenericName,
             m.BrandName,
             m.DosageStrength,
-            m.Manufacturer,
+            md.Manufacturer,
             md.ExpirationDate,
             md.StockAvailability,
             md.Contraindications,
-            md.Precautions,
-            md.UnitPrice
+            md.Precautions
         FROM medicationdetails md
         JOIN medications m ON md.MedicationID = m.MedicationID
-        ORDER BY md.MedicationDetailID ASC
+        ORDER BY md.MedDet ASC
     ");
     $s->execute();
     $medications = $s->fetchAll();
@@ -64,7 +63,7 @@ function fmtPad($n, $len = 3): string {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PharmaCare — Inventory</title>
-    <link rel="stylesheet" href="assets/css/main.css">
+    <link rel="stylesheet" href="../assets/css/main.css">
 </head>
 <body>
 
@@ -111,7 +110,7 @@ function fmtPad($n, $len = 3): string {
                 </svg>
             </a>
 
-            <a href="medications.php" class="nav-item active" data-label="Inventory">
+            <a href="inventory.php" class="nav-item active" data-label="Inventory">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
                 </svg>
@@ -135,7 +134,7 @@ function fmtPad($n, $len = 3): string {
 
         </nav>
 
-        <a href="logout.php" class="sidebar-footer" onclick="return confirm('Log out?')" title="Logout">
+        <a href="../logout.php" class="sidebar-footer" onclick="return confirm('Log out?')" title="Logout">
             <div class="s-avatar"><?= strtoupper(substr($_SESSION['full_name'] ?? 'P', 0, 1)) ?></div>
         </a>
 
@@ -144,7 +143,7 @@ function fmtPad($n, $len = 3): string {
     <!-- ══ MAIN ══ -->
     <div class="main-area">
 
-        <?php include 'header.php'; ?>
+        <?php include __DIR__ . '/../partials/header.php'; ?>
 
         <div class="page-body">
 
@@ -210,13 +209,13 @@ function fmtPad($n, $len = 3): string {
                             ?>
                             <tr
                                 data-search="<?= strtolower(
-                                    'BATCH-' . fmtPad($m['MedicationDetailID']) . ' ' .
+                                    'BATCH-' . fmtPad($m['MedDet']) . ' ' .
                                     'MED-'   . fmtPad($m['MedicationID']) . ' ' .
                                     $m['GenericName'] . ' ' . $m['BrandName']
                                 ) ?>"
                                 data-status="<?= $status ?>"
                             >
-                                <td class="med-col-batch">BATCH-<?= fmtPad($m['MedicationDetailID']) ?></td>
+                                <td class="med-col-batch">BATCH-<?= fmtPad($m['MedDet']) ?></td>
                                 <td class="med-col-id">MED-<?= fmtPad($m['MedicationID']) ?></td>
                                 <td class="med-col-name"><?= htmlspecialchars($m['GenericName']) ?></td>
                                 <td class="med-col-brand"><?= htmlspecialchars($m['BrandName']) ?></td>
@@ -251,7 +250,7 @@ function fmtPad($n, $len = 3): string {
             <div class="modal-title">Add New Medicine</div>
             <button class="modal-close" id="closeModal" title="Close">✕</button>
         </div>
-        <form method="POST" action="add_medication.php" id="addMedForm">
+        <form method="POST" action="../api/save_medication.php" id="addMedForm">
             <div class="modal-grid">
 
                 <div class="modal-field">

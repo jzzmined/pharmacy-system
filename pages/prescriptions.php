@@ -2,44 +2,113 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/config.php';
 
-$page_title = 'Prescription';
+$page_title = 'Prescriptions';
 
-/* ── DB data ── */
 try {
     $db = getDB();
 
-    $doctors = $db->query(
-        "SELECT DoctorID, FullName FROM doctors ORDER BY FullName"
-    )->fetchAll();
+    // Fetch all available medications with stock details
+    $s = $db->prepare("
+        SELECT
+            md.MedDet,
+            m.MedicationID,
+            m.GenericName,
+            m.BrandName,
+            m.DosageStrength,
+            md.Manufacturer,
+            md.ExpirationDate,
+            md.StockAvailability
+        FROM medicationdetails md
+        JOIN medications m ON md.MedicationID = m.MedicationID
+        WHERE md.StockAvailability > 0
+        ORDER BY m.GenericName ASC
+    ");
+    $s->execute();
+    $medications = $s->fetchAll();
 
-    $medicines = $db->query(
-        "SELECT m.MedicationID, m.GenericName, m.BrandName,m.DosageStrength,
-        MAX(md.Manufacturer) AS Manufacturer, 
-        IFNULL(SUM(md.StockAvailability), 0) AS Stock, 
-        MIN(md.ExpirationDate) AS NearestExpiry 
-        FROM medications m
-        LEFT JOIN medicationdetails md ON m.MedicationID = md.MedicationID
-        GROUP BY m.MedicationID
-        ORDER BY m.GenericName ASC;"
-    )->fetchAll();
+    // Fetch doctors for the dropdown
+    $s = $db->prepare("SELECT DoctorID, FullName AS DoctorName FROM doctors ORDER BY DoctorName ASC");
+    $s->execute();
+    $doctors = $s->fetchAll();
 
-} catch (Throwable $e) {
-    $doctors = [
-        ['DoctorID' => 1, 'FullName' => 'Dr. Maria Santos'],
-        ['DoctorID' => 2, 'FullName' => 'Dr. Jose Reyes'],
-    ];
-    $medicines = [
-        ['MedicationID' => 1, 'GenericName' => 'Phenylephrine',   'BrandName' => 'Phenylephrine',  'DosageStrength' => '10mg',  'Manufacturer' => 'Novartis', 'Stock' => 89,  'NearestExpiry' => '2026-05-15'],
-        ['MedicationID' => 2, 'GenericName' => 'Pseudoephedrine', 'BrandName' => 'Pseudoephedrine','DosageStrength' => '60mg',  'Manufacturer' => 'GSK',     'Stock' => 144, 'NearestExpiry' => '2026-08-15'],
-        ['MedicationID' => 3, 'GenericName' => 'Cetirizine',      'BrandName' => 'Cetirizine',     'DosageStrength' => '10mg',  'Manufacturer' => 'Bayer',   'Stock' => 59,  'NearestExpiry' => '2026-07-15'],
-        ['MedicationID' => 4, 'GenericName' => 'Amoxicillin',     'BrandName' => 'Amoxil',         'DosageStrength' => '500mg', 'Manufacturer' => 'GSK',     'Stock' => 210, 'NearestExpiry' => '2026-12-01'],
-        ['MedicationID' => 5, 'GenericName' => 'Metformin',       'BrandName' => 'Glucophage',     'DosageStrength' => '500mg', 'Manufacturer' => 'Merck',   'Stock' => 38,  'NearestExpiry' => '2025-11-20'],
-    ];
+} catch (PDOException $e) {
+    $medications = [];
+    $doctors = [];
 }
 
-function stockClass(int $s): string {
-    if ($s <= 50)  return 'med-crit';
-    if ($s <= 100) return 'med-low';
+// Handle form submission
+$success = '';
+$error   = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'create_prescription') {
+    try {
+        $db = getDB();
+        $db->beginTransaction();
+
+        // Insert or find patient
+        $full_name   = trim($_POST['full_name'] ?? '');
+        $age         = (int)($_POST['age'] ?? 0);
+        $gender      = $_POST['gender'] ?? 'Other';
+        $condition   = trim($_POST['medical_condition'] ?? '');
+        $doctor_id   = (int)($_POST['doctor_id'] ?? 0);
+        $contact     = trim($_POST['contact_info'] ?? '');
+        $med_ids     = $_POST['med_ids'] ?? [];
+        $quantities  = $_POST['quantities'] ?? [];
+
+        if (empty($full_name) || empty($med_ids)) {
+            throw new Exception("Patient name and at least one medicine are required.");
+        }
+
+        // Insert patient
+        $s = $db->prepare("INSERT INTO patients (FullName, Age, Gender, MedicalCondition, ContactInformation) VALUES (?,?,?,?,?)");
+        $s->execute([$full_name, $age, $gender, $condition, $contact]);
+        $patient_id = $db->lastInsertId();
+
+        // Insert prescription
+        $s = $db->prepare("INSERT INTO prescriptions (PatientID, DoctorID, DatePrescribed, PharmacistID) VALUES (?,?,CURDATE(),?)");
+        $s->execute([$patient_id, $doctor_id ?: null, $_SESSION['user_id'] ?? 1]);
+        $prescription_id = $db->lastInsertId();
+
+        // Insert prescription details + update stock
+        $subtotal = 0;
+        foreach ($med_ids as $i => $med_detail_id) {
+            $qty = max(1, (int)($quantities[$i] ?? 1));
+
+            // Get unit price and check stock
+            $s = $db->prepare("SELECT md.StockAvailability, md.MedicationID FROM medicationdetails md WHERE MedDet = ?");
+            $s->execute([$med_detail_id]);
+            $med = $s->fetch();
+            if (!$med) continue;
+            if ($med['StockAvailability'] < $qty) {
+                throw new Exception("Insufficient stock for medication ID $med_detail_id.");
+            }
+
+            $subtotal += $qty; // UnitPrice not in DB; using qty as placeholder
+
+            $s = $db->prepare("INSERT INTO prescriptiondetails (PrescriptionID, MedicationID, QuantityPrescribed, Directions) VALUES (?,?,?,'')");
+            $s->execute([$prescription_id, $med['MedicationID'], $qty]);
+
+            // Deduct stock
+            $s = $db->prepare("UPDATE medicationdetails SET StockAvailability = StockAvailability - ? WHERE MedDet = ?");
+            $s->execute([$qty, $med_detail_id]);
+        }
+
+        // Insert invoice
+        $s = $db->prepare("INSERT INTO invoices (PrescriptionID, PharmacistID, Subtotal, Total, Status) VALUES (?,?,?,?,'Pending')");
+        $s->execute([$prescription_id, $_SESSION['user_id'] ?? 1, $subtotal, $subtotal]);
+
+        $db->commit();
+        $success = "Prescription #RX-" . str_pad($prescription_id, 3, '0', STR_PAD_LEFT) . " created successfully!";
+
+    } catch (Exception $e) {
+        if (isset($db)) $db->rollBack();
+        $error = $e->getMessage();
+    }
+}
+
+function fmtPad($n, $len = 3): string { return str_pad($n, $len, '0', STR_PAD_LEFT); }
+function stockClass(int $qty): string {
+    if ($qty <= 100) return 'med-crit';
+    if ($qty <= 300) return 'med-low';
     return 'med-ok';
 }
 ?>
@@ -48,8 +117,8 @@ function stockClass(int $s): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PharmaCare — Prescription</title>
-    <link rel="stylesheet" href="assets/css/main.css">
+    <title>PharmaCare — Prescriptions</title>
+    <link rel="stylesheet" href="../assets/css/main.css">
 </head>
 <body>
 
@@ -59,134 +128,156 @@ function stockClass(int $s): string {
 
     <!-- ══ SIDEBAR ══ -->
     <aside class="sidebar" id="sidebar">
+
         <div class="sidebar-brand">
             <div class="brand-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/>
                     <line x1="12" y1="8" x2="12" y2="16"/>
-                    <line x1="8" y1="12" x2="16" y2="12"/>
+                    <line x1="8"  y1="12" x2="16" y2="12"/>
                 </svg>
             </div>
+            <span class="brand-name">Pharma<br>Care</span>
         </div>
+
         <nav class="sidebar-nav">
+
             <a href="dashboard.php" class="nav-item" data-label="Dashboard">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="3" y="3" width="7" height="7" rx="1"/>
                     <rect x="14" y="3" width="7" height="7" rx="1"/>
                     <rect x="14" y="14" width="7" height="7" rx="1"/>
                     <rect x="3" y="14" width="7" height="7" rx="1"/>
                 </svg>
             </a>
+
             <a href="prescriptions.php" class="nav-item active" data-label="Prescriptions">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
                     <rect x="9" y="3" width="6" height="4" rx="2"/>
+                    <line x1="9" y1="12" x2="15" y2="12"/>
+                    <line x1="9" y1="16" x2="12" y2="16"/>
                 </svg>
             </a>
+
             <a href="transactions.php" class="nav-item" data-label="Transactions">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="12" y1="1" x2="12" y2="23"/>
-                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="5" width="20" height="14" rx="2"/>
+                    <line x1="2" y1="10" x2="22" y2="10"/>
                 </svg>
             </a>
-            <a href="medications.php" class="nav-item" data-label="Medications">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+
+            <a href="inventory.php" class="nav-item" data-label="Inventory">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
                 </svg>
             </a>
+
             <a href="patients.php" class="nav-item" data-label="Patients">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                     <circle cx="9" cy="7" r="4"/>
                     <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
                     <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                 </svg>
             </a>
+
             <a href="users.php" class="nav-item" data-label="Users">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="8" r="4"/>
                     <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
                 </svg>
             </a>
+
         </nav>
-        <a href="logout.php" class="sidebar-footer" onclick="return confirm('Log out?')" title="Logout">
+
+        <a href="../logout.php" class="sidebar-footer" onclick="return confirm('Log out?')" title="Logout">
             <div class="s-avatar"><?= strtoupper(substr($_SESSION['full_name'] ?? 'P', 0, 1)) ?></div>
         </a>
+
     </aside>
 
     <!-- ══ MAIN ══ -->
     <div class="main-area">
-        <?php include 'header.php'; ?>
+
+        <?php include __DIR__ . '/../partials/header.php'; ?>
 
         <div class="page-body">
 
-            <!-- ══ STEP WIZARD ══ -->
+            <?php if ($success): ?>
+                <div class="rx-result ok" style="margin-bottom:18px"><?= htmlspecialchars($success) ?></div>
+            <?php endif; ?>
+            <?php if ($error): ?>
+                <div class="rx-result err" style="margin-bottom:18px"><?= htmlspecialchars($error) ?></div>
+            <?php endif; ?>
+
+            <!-- Step Wizard -->
             <div class="rx-wizard">
-                <div class="rx-step active" id="ind1">
+                <div class="rx-step active" id="step1-indicator">
                     <div class="step-num">1</div>
                     <span class="step-lbl">Patient Info</span>
                 </div>
                 <div class="rx-line" id="line1"></div>
-                <div class="rx-step idle" id="ind2">
+                <div class="rx-step idle" id="step2-indicator">
                     <div class="step-num">2</div>
                     <span class="step-lbl">Select Medicines</span>
                 </div>
                 <div class="rx-line" id="line2"></div>
-                <div class="rx-step idle" id="ind3">
+                <div class="rx-step idle" id="step3-indicator">
                     <div class="step-num">3</div>
                     <span class="step-lbl">Review &amp; Submit</span>
                 </div>
             </div>
 
-            <!-- ════════════════════════════
-                 STEP 1 — Patient + Medicines
-                 ════════════════════════════ -->
-            <div id="rxStep1">
-                <div class="rx-body">
+            <!-- Multi-step Form -->
+            <form method="POST" id="rxForm">
+                <input type="hidden" name="action" value="create_prescription">
 
-                    <!-- LEFT: Patient Information -->
+                <!-- ══ STEP 1: Patient Info ══ -->
+                <div id="step1" class="rx-body">
+
+                    <!-- Patient Details Card -->
                     <div class="rx-patient-card">
                         <h3>Patient Information</h3>
+
                         <div class="rx-field">
-                            <input type="text" class="rx-input" id="ptName" placeholder="Full name" autocomplete="off">
+                            <input class="rx-input" type="text" name="full_name" id="full_name" placeholder="Full Name" required>
                         </div>
                         <div class="rx-field">
-                            <input type="number" class="rx-input" id="ptAge" placeholder="Age" min="1" max="120">
+                            <input class="rx-input" type="number" name="age" id="age" placeholder="Age" min="0" max="120">
                         </div>
                         <div class="rx-field">
-                            <select class="rx-select" id="ptGender">
-                                <option value="">Gender</option>
+                            <select class="rx-select" name="gender" id="gender">
+                                <option value="" disabled selected>Gender</option>
                                 <option value="Male">Male</option>
                                 <option value="Female">Female</option>
                                 <option value="Other">Other</option>
                             </select>
                         </div>
                         <div class="rx-field">
-                            <input type="text" class="rx-input" id="ptCondition" placeholder="Medical Condition">
+                            <input class="rx-input" type="text" name="medical_condition" id="medical_condition" placeholder="Medical Condition">
                         </div>
                         <div class="rx-field">
-                            <select class="rx-select" id="ptDoctor">
-                                <option value="">Doctor</option>
+                            <select class="rx-select" name="doctor_id" id="doctor_id">
+                                <option value="" disabled selected>Select Doctor</option>
                                 <?php foreach ($doctors as $d): ?>
-                                    <option value="<?= $d['DoctorID'] ?>"><?= htmlspecialchars($d['FullName']) ?></option>
+                                    <option value="<?= $d['DoctorID'] ?>"><?= htmlspecialchars($d['DoctorName']) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="rx-field">
-                            <input type="text" class="rx-input" id="ptContact" placeholder="Contact Information">
+                            <input class="rx-input" type="text" name="contact_info" id="contact_info" placeholder="Contact Information">
                         </div>
                     </div>
 
-                    <!-- RIGHT: Medicine selector + Selected card stacked -->
-                    <div style="display:flex; flex-direction:column; gap:20px;">
-
-                        <!-- Medicine card -->
+                    <!-- Medicine Selection Card -->
+                    <div style="display:flex;flex-direction:column;gap:16px;">
                         <div class="rx-med-card">
                             <div class="rx-med-header">
                                 <h3>Select Medicines</h3>
                             </div>
                             <div class="rx-search-row">
-                                <input type="text" class="rx-search-input" id="medSearch" placeholder="Search...">
+                                <input class="rx-search-input" type="text" id="medSearchInput" placeholder="Search medications…" autocomplete="off">
                             </div>
                             <div class="rx-med-table-wrap">
                                 <table class="rx-med-table">
@@ -200,234 +291,282 @@ function stockClass(int $s): string {
                                             <th>Manufacturer</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="medTbody">
-                                        <?php foreach ($medicines as $m): ?>
-                                            <tr class="med-row" data-search="<?= strtolower(htmlspecialchars($m['GenericName'] . ' ' . $m['BrandName'])) ?>">
-                                                <td>
-                                                    <input type="checkbox" class="rx-check"
-                                                        value="<?= $m['MedicationID'] ?>"
-                                                        data-name="<?= htmlspecialchars($m['GenericName']) ?>"
-                                                        data-brand="<?= htmlspecialchars($m['BrandName']) ?>"
-                                                        data-strength="<?= htmlspecialchars($m['DosageStrength']) ?>"
-                                                        data-stock="<?= (int) $m['Stock'] ?>"
-                                                        onchange="toggleMed(this)">
-                                                </td>
-                                                <td>
-                                                    <span style="font-weight:600;color:#1e293b"><?= htmlspecialchars($m['GenericName']) ?></span>
-                                                    <span style="font-size:.78rem;color:#94a3b8;margin-left:4px"><?= htmlspecialchars($m['DosageStrength']) ?></span>
-                                                </td>
-                                                <td style="color:#94a3b8;font-size:.83rem"><?= htmlspecialchars($m['BrandName']) ?></td>
-                                                <td class="<?= stockClass((int) $m['Stock']) ?>"><?= (int) $m['Stock'] ?></td>
-                                                <td style="font-size:.81rem;color:#94a3b8"><?= htmlspecialchars($m['NearestExpiry'] ?? '—') ?></td>
-                                                <td style="font-size:.81rem;color:#94a3b8"><?= htmlspecialchars($m['Manufacturer'] ?? '—') ?></td>
-                                            </tr>
-                                        <?php endforeach; ?>
+                                    <tbody id="medTableBody">
+                                    <?php if (empty($medications)): ?>
+                                        <tr><td colspan="6" style="text-align:center;padding:20px;color:#94a3b8">No medications available</td></tr>
+                                    <?php else: foreach ($medications as $m):
+                                        $qty = (int)$m['StockAvailability'];
+                                        $sc  = stockClass($qty);
+                                    ?>
+                                        <tr class="med-row"
+                                            data-search="<?= strtolower($m['GenericName'] . ' ' . $m['BrandName'] . ' ' . $m['Manufacturer']) ?>"
+                                            data-id="<?= $m['MedDet'] ?>"
+                                            data-name="<?= htmlspecialchars($m['GenericName']) ?>"
+                                            data-dose="<?= htmlspecialchars($m['DosageStrength']) ?>"
+                                            data-price="0"
+                                            data-stock="<?= $qty ?>">
+                                            <td>
+                                                <input class="rx-check med-checkbox" type="checkbox"
+                                                    name="med_ids[]"
+                                                    value="<?= $m['MedDet'] ?>"
+                                                    <?= $qty <= 0 ? 'disabled' : '' ?>>
+                                            </td>
+                                            <td>
+                                                <strong><?= htmlspecialchars($m['GenericName']) ?></strong>
+                                                <span style="font-size:.75rem;color:#94a3b8;margin-left:4px"><?= htmlspecialchars($m['DosageStrength']) ?></span>
+                                            </td>
+                                            <td style="color:#64748b"><?= htmlspecialchars($m['BrandName']) ?></td>
+                                            <td class="<?= $sc ?>"><?= $qty ?></td>
+                                            <td style="font-size:.8rem;color:#94a3b8"><?= htmlspecialchars($m['ExpirationDate']) ?></td>
+                                            <td style="font-size:.8rem;color:#64748b"><?= htmlspecialchars($m['Manufacturer'] ?? '—') ?></td>
+                                        </tr>
+                                    <?php endforeach; endif; ?>
                                     </tbody>
                                 </table>
                             </div>
-                        </div><!-- /rx-med-card -->
-
-                        <!-- Selected medicines card — same width as medicine card above -->
-                        <div class="rx-selected-card" id="selCard" style="display:none;">
-                            <h4>Selected Medicines (<span id="selCount">0</span>)</h4>
-                            <div id="selList"></div>
                         </div>
 
-                        <!-- Next button — inside flex column, always below selected card -->
-                        <div style="display:flex; justify-content:flex-end;">
-                            <button class="btn-primary" onclick="goStep2()">Next: Review &amp; Submit →</button>
+                        <!-- Selected Medicines Summary -->
+                        <div class="rx-selected-card" id="selectedCard" style="display:none">
+                            <h4>Selected Medicines</h4>
+                            <div id="selectedList"></div>
                         </div>
-
-                    </div><!-- /flex column wrapper -->
-
-                </div><!-- /rx-body -->
-            </div><!-- /#rxStep1 -->
-
-            <!-- ════════════════════════════
-                 STEP 2 — Review & Submit
-                 ════════════════════════════ -->
-            <div id="rxStep2" style="display:none">
-                <div class="rx-review-wrap">
-
-                    <div class="rx-review-card">
-                        <h3>Patient Details</h3>
-                        <div class="review-row"><span class="review-key">Full Name</span>  <span class="review-value" id="rv-name">—</span></div>
-                        <div class="review-row"><span class="review-key">Age</span>        <span class="review-value" id="rv-age">—</span></div>
-                        <div class="review-row"><span class="review-key">Gender</span>     <span class="review-value" id="rv-gender">—</span></div>
-                        <div class="review-row"><span class="review-key">Condition</span>  <span class="review-value" id="rv-condition">—</span></div>
-                        <div class="review-row"><span class="review-key">Doctor</span>     <span class="review-value" id="rv-doctor">—</span></div>
-                        <div class="review-row"><span class="review-key">Contact</span>    <span class="review-value" id="rv-contact">—</span></div>
                     </div>
 
-                    <div class="rx-review-card">
-                        <h3>Medicines Prescribed</h3>
-                        <div id="rv-meds"></div>
-                        <div class="review-row" style="margin-top:12px">
-                            <span class="review-key">Date</span>
-                            <span class="review-value"><?= date('F j, Y') ?></span>
+                </div><!-- /step1 -->
+
+                <!-- ══ STEP 2: Review ══ -->
+                <div id="step2" style="display:none">
+                    <div class="rx-review-wrap">
+
+                        <!-- Patient summary -->
+                        <div class="rx-review-card">
+                            <h3>Patient Details</h3>
+                            <div id="rv-patient"></div>
                         </div>
-                        <div class="review-row">
-                            <span class="review-key">Valid Until</span>
-                            <span class="review-value"><?= date('F j, Y', strtotime('+30 days')) ?></span>
+
+                        <!-- Medicine summary -->
+                        <div class="rx-review-card">
+                            <h3>Medicines &amp; Total</h3>
+                            <div id="rv-meds"></div>
+                            <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center">
+                                <span style="font-weight:700;color:#1e293b">Total Amount</span>
+                                <span style="font-size:1.2rem;font-weight:800;color:#1e293b" id="rv-total">₱0.00</span>
+                            </div>
                         </div>
-                        <div id="rxResult"></div>
+
                     </div>
+                </div><!-- /step2 -->
 
+                <!-- ── Navigation Buttons ── -->
+                <div class="rx-actions" style="margin-top:20px;display:flex;justify-content:flex-end;position:relative;z-index:0;">
+                    <button type="button" class="btn-secondary" id="btnBack" style="display:none" onclick="goBack()">← Back</button>
+                    <button type="button" class="btn-primary" id="btnNext" onclick="goNext()">Next: Select Medicines →</button>
+                    <button type="submit" class="btn-primary" id="btnSubmit" style="display:none">✓ Confirm &amp; Create Prescription</button>
                 </div>
 
-                <div class="rx-actions" style="margin-top:20px;">
-                    <button class="btn-secondary" onclick="goBack()">← Back</button>
-                    <button class="btn-primary" id="submitBtn" onclick="doSubmit()">✓ Confirm &amp; Save</button>
-                </div>
-            </div><!-- /#rxStep2 -->
+            </form>
 
         </div><!-- /page-body -->
     </div><!-- /main-area -->
 </div><!-- /app-layout -->
 
 <div class="toast-tray" id="toastTray"></div>
-<script src="assets/js/dashboard.js"></script>
 
 <script>
-    const sel = {};
+// ── State ──
+let currentStep = 1;
+const selected = {}; // { medDetailId: { name, dose, price, qty } }
 
-    function filterMeds() {
-        const q = document.getElementById('medSearch').value.toLowerCase().trim();
-        document.querySelectorAll('.med-row').forEach(r => {
-            r.style.display = (!q || r.dataset.search.includes(q)) ? '' : 'none';
-        });
-    }
-    document.getElementById('medSearch').addEventListener('input', filterMeds);
-    document.getElementById('medSearch').addEventListener('keydown', e => { if (e.key === 'Enter') filterMeds(); });
+// ── DOM refs ──
+const step1El   = document.getElementById('step1');
+const step2El   = document.getElementById('step2');
+const btnBack   = document.getElementById('btnBack');
+const btnNext   = document.getElementById('btnNext');
+const btnSubmit = document.getElementById('btnSubmit');
 
-    function toggleMed(cb) {
-        const id = cb.value;
-        const row = cb.closest('tr');
-        if (cb.checked) {
-            sel[id] = { name: cb.dataset.name, brand: cb.dataset.brand, strength: cb.dataset.strength, stock: +cb.dataset.stock, qty: 1 };
-            row.classList.add('is-selected');
-        } else {
-            delete sel[id];
-            row.classList.remove('is-selected');
+const s1ind = document.getElementById('step1-indicator');
+const s2ind = document.getElementById('step2-indicator');
+const s3ind = document.getElementById('step3-indicator');
+const line1 = document.getElementById('line1');
+const line2 = document.getElementById('line2');
+
+// ── Wizard nav ──
+function goNext() {
+    if (currentStep === 1) {
+        // Validate patient name
+        if (!document.getElementById('full_name').value.trim()) {
+            showToast('Please enter the patient\'s full name.', 'warn'); return;
         }
-        renderSel();
-    }
-
-    function renderSel() {
-        const card  = document.getElementById('selCard');
-        const list  = document.getElementById('selList');
-        const count = Object.keys(sel).length;
-        document.getElementById('selCount').textContent = count;
-        if (!count) { card.style.display = 'none'; return; }
-        card.style.display = 'block';
-        list.innerHTML = Object.entries(sel).map(([id, m]) => `
-            <div class="sel-item">
-                <div>
-                    <div class="sel-name">${esc(m.name)}</div>
-                    <div class="sel-dose">${esc(m.brand)} · ${esc(m.strength)}</div>
-                </div>
-                <input type="number" class="sel-qty" value="${m.qty}"
-                       min="1" max="${m.stock}"
-                       onchange="sel['${id}'].qty = Math.max(1,+this.value)">
-            </div>`
-        ).join('');
-    }
-
-    function setStep(n) {
-        [1, 2, 3].forEach(i => {
-            document.getElementById('ind' + i).className = 'rx-step ' + (i < n ? 'done' : i === n ? 'active' : 'idle');
-        });
-        document.getElementById('line1').classList.toggle('done', n >= 2);
-        document.getElementById('line2').classList.toggle('done', n >= 3);
-    }
-
-    function goStep2() {
-        const name   = document.getElementById('ptName').value.trim();
-        const age    = document.getElementById('ptAge').value.trim();
-        const gender = document.getElementById('ptGender').value;
-        const doctor = document.getElementById('ptDoctor');
-
-        if (!name || !age || !gender || !doctor.value) {
-            showToast('Please fill in Name, Age, Gender and Doctor.', 'warn'); return;
-        }
-        if (!Object.keys(sel).length) {
+        if (Object.keys(selected).length === 0) {
             showToast('Please select at least one medicine.', 'warn'); return;
         }
-
-        document.getElementById('rv-name').textContent      = name;
-        document.getElementById('rv-age').textContent       = age + ' years old';
-        document.getElementById('rv-gender').textContent    = gender;
-        document.getElementById('rv-condition').textContent = document.getElementById('ptCondition').value.trim() || '—';
-        document.getElementById('rv-doctor').textContent    = doctor.options[doctor.selectedIndex].text;
-        document.getElementById('rv-contact').textContent   = document.getElementById('ptContact').value.trim() || '—';
-        document.getElementById('rv-meds').innerHTML = Object.values(sel).map(m =>
-            `<div class="review-row">
-                <span class="review-key">${esc(m.name)} ${esc(m.strength)}</span>
-                <span class="review-value">Qty: ${m.qty}</span>
-             </div>`
-        ).join('');
-        document.getElementById('rxResult').innerHTML = '';
-        document.getElementById('submitBtn').style.display = '';
-
-        document.getElementById('rxStep1').style.display = 'none';
-        document.getElementById('rxStep2').style.display = '';
-        setStep(2);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        buildReview();
+        step1El.style.display = 'none';
+        step2El.style.display = 'block';
+        btnBack.style.display = 'inline-flex';
+        btnNext.style.display = 'none';
+        btnSubmit.style.display = 'inline-flex';
+        currentStep = 2;
+        s1ind.className = 'rx-step done';
+        s2ind.className = 'rx-step active';
+        s3ind.className = 'rx-step active';
+        line1.classList.add('done');
+        line2.classList.add('done');
+        btnNext.textContent = 'Review & Submit →';
     }
+}
 
-    function goBack() {
-        document.getElementById('rxStep2').style.display = 'none';
-        document.getElementById('rxStep1').style.display = '';
-        setStep(1);
-    }
+function goBack() {
+    step2El.style.display = 'none';
+    step1El.style.display = 'grid';
+    btnBack.style.display = 'none';
+    btnNext.style.display = 'inline-flex';
+    btnSubmit.style.display = 'none';
+    currentStep = 1;
+    s1ind.className = 'rx-step active';
+    s2ind.className = 'rx-step idle';
+    s3ind.className = 'rx-step idle';
+    line1.classList.remove('done');
+    line2.classList.remove('done');
+}
 
-    async function doSubmit() {
-        const btn = document.getElementById('submitBtn');
-        btn.disabled = true; btn.textContent = 'Saving…';
+// ── Build review panel ──
+function buildReview() {
+    // Patient details
+    const fields = [
+        ['Full Name',          document.getElementById('full_name').value],
+        ['Age',                document.getElementById('age').value || '—'],
+        ['Gender',             document.getElementById('gender').value || '—'],
+        ['Medical Condition',  document.getElementById('medical_condition').value || '—'],
+        ['Contact',            document.getElementById('contact_info').value || '—'],
+    ];
+    const rvPat = document.getElementById('rv-patient');
+    rvPat.innerHTML = fields.map(([k,v]) =>
+        `<div class="review-row"><span class="review-key">${k}</span><span class="review-value">${v}</span></div>`
+    ).join('');
 
-        const payload = {
-            patient_name:      document.getElementById('ptName').value.trim(),
-            patient_age:       document.getElementById('ptAge').value.trim(),
-            patient_gender:    document.getElementById('ptGender').value,
-            doctor_id:         document.getElementById('ptDoctor').value,
-            medical_condition: document.getElementById('ptCondition').value.trim(),
-            contact:           document.getElementById('ptContact').value.trim(),
-            medicines: Object.entries(sel).map(([id, m]) => ({ medication_id: id, quantity: m.qty }))
-        };
+    // Medicines
+    let total = 0;
+    const rvMeds = document.getElementById('rv-meds');
+    const rows = Object.values(selected).map(s => {
+        const line = s.price * s.qty;
+        total += line;
+        return `<div class="review-row">
+            <span class="review-key">${s.name} <span style="font-size:.75rem;color:#94a3b8">${s.dose}</span></span>
+            <span class="review-value">× ${s.qty} &nbsp; ₱${line.toFixed(2)}</span>
+        </div>`;
+    });
+    rvMeds.innerHTML = rows.join('');
+    document.getElementById('rv-total').textContent = '₱' + total.toFixed(2);
+}
 
-        try {
-            const res  = await fetch('api/save_prescriptions.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const data = await res.json();
-            const box  = document.getElementById('rxResult');
-
-            if (data.success) {
-                box.className   = 'rx-result ok';
-                box.textContent = `✓ Prescription saved! ID: ${data.prescription_id ?? 'N/A'}`;
-                btn.style.display = 'none';
-                setStep(3);
-                showToast('Prescription saved!', 'ok');
-            } else {
-                box.className   = 'rx-result err';
-                box.textContent = '✗ ' + (data.message ?? 'Unknown error');
-                btn.disabled = false; btn.textContent = '✓ Confirm & Save';
-            }
-        } catch (e) {
-            const box = document.getElementById('rxResult');
-            box.className   = 'rx-result err';
-            box.textContent = '⚠ Could not reach server.';
-            btn.disabled = false; btn.textContent = '✓ Confirm & Save';
+// ── Checkbox logic ──
+document.querySelectorAll('.med-checkbox').forEach(cb => {
+    cb.addEventListener('change', function () {
+        const row   = this.closest('tr');
+        const id    = this.value;
+        if (this.checked) {
+            row.classList.add('is-selected');
+            selected[id] = {
+                name:  row.dataset.name,
+                dose:  row.dataset.dose,
+                price: 0,
+                qty:   1,
+                input: null,
+            };
+        } else {
+            row.classList.remove('is-selected');
+            delete selected[id];
         }
-    }
+        renderSelectedList();
+    });
+});
 
-    function esc(s) {
-        const d = document.createElement('div');
-        d.textContent = s ?? '';
-        return d.innerHTML;
-    }
+function renderSelectedList() {
+    const card = document.getElementById('selectedCard');
+    const list = document.getElementById('selectedList');
+    const ids  = Object.keys(selected);
+
+    if (ids.length === 0) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+
+    list.innerHTML = ids.map(id => {
+        const s = selected[id];
+        return `<div class="sel-item">
+            <div>
+                <div class="sel-name">${s.name}</div>
+                <div class="sel-dose">${s.dose}</div>
+            </div>
+            <div class="sel-qty">
+                <button type="button" class="sel-qty-btn" onclick="adjustQty('${id}', -1)">−</button>
+                <span class="sel-qty-num" id="qty-display-${id}">${s.qty}</span>
+                <button type="button" class="sel-qty-btn" onclick="adjustQty('${id}', 1)">+</button>
+            </div>
+        </div>`;
+    }).join('');
+
+    // Sync hidden quantity inputs
+    syncQtyInputs();
+}
+
+function adjustQty(id, delta) {
+    if (!selected[id]) return;
+    const maxStock = parseInt(document.querySelector(`tr[data-id="${id}"]`)?.dataset.stock || 999);
+    selected[id].qty = Math.max(1, Math.min(selected[id].qty + delta, maxStock));
+    const display = document.getElementById('qty-display-' + id);
+    if (display) display.textContent = selected[id].qty;
+    syncQtyInputs();
+}
+
+function syncQtyInputs() {
+    // Remove old hidden quantity inputs
+    document.querySelectorAll('.qty-hidden').forEach(el => el.remove());
+    const form = document.getElementById('rxForm');
+    Object.entries(selected).forEach(([id, s]) => {
+        const inp = document.createElement('input');
+        inp.type  = 'hidden';
+        inp.name  = 'quantities[]';
+        inp.value = s.qty;
+        inp.className = 'qty-hidden';
+        form.appendChild(inp);
+    });
+}
+
+// ── Medicine search ──
+document.getElementById('medSearchInput').addEventListener('input', function () {
+    const q = this.value.toLowerCase().trim();
+    document.querySelectorAll('.med-row').forEach(row => {
+        row.style.display = !q || row.dataset.search.includes(q) ? '' : 'none';
+    });
+});
+
+// ── Toast helper ──
+function showToast(msg, type = 'ok') {
+    const tray = document.getElementById('toastTray');
+    const t = document.createElement('div');
+    t.className = `toast-msg t-${type}`;
+    t.textContent = msg;
+    tray.appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+}
+
+// ── Sidebar toggle (mobile) ──
+const sidebar        = document.getElementById('sidebar');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+const sidebarToggle  = document.getElementById('sidebarToggle');
+if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', () => {
+        sidebar.classList.toggle('open');
+        sidebarOverlay.classList.toggle('show');
+    });
+}
+if (sidebarOverlay) {
+    sidebarOverlay.addEventListener('click', () => {
+        sidebar.classList.remove('open');
+        sidebarOverlay.classList.remove('show');
+    });
+}
 </script>
 
 </body>

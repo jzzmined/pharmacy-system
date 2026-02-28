@@ -4,8 +4,8 @@
  * Called by dashboard.js every 60 seconds.
  */
 // Fix the paths to the includes folder
-require_once __DIR__ . '/includes/auth.php';
-require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/config.php';
 
 header('Content-Type: application/json');
 
