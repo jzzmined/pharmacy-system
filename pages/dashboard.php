@@ -57,7 +57,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
 
 <div class="app-layout">
 
-    <!-- ══ SIDEBAR — cyan icon rail ══ -->
+    <!-- ══ SIDEBAR ══ -->
     <aside class="sidebar" id="sidebar">
 
         <div class="sidebar-brand">
@@ -91,8 +91,8 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
 
             <a href="transactions.php" class="nav-item" data-label="Transactions">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="12" y1="1" x2="12" y2="23"/>
-                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    <rect x="2" y="5" width="20" height="14" rx="2"/>
+                    <line x1="2" y1="10" x2="22" y2="10"/>
                 </svg>
             </a>
 
@@ -102,7 +102,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                 </svg>
             </a>
 
-            <a href="admi.php" class="nav-item" data-label="Patients">
+            <a href="admin.php" class="nav-item" data-label="Admin">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                     <circle cx="9" cy="7" r="4"/>
@@ -110,13 +110,6 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                     <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                 </svg>
             </a>
-
-            <!-- <a href="users.php" class="nav-item" data-label="Users">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="8" r="4"/>
-                    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-                </svg>
-            </a> -->
 
         </nav>
 
@@ -133,71 +126,62 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
 
         <div class="page-body">
 
-            <!-- Welcome Banner -->
-            <!-- <div class="welcome-banner">
-                <div>
-                    <div class="wb-title">Welcome back, <?= htmlspecialchars($_SESSION['full_name'] ?? 'Pharmacist') ?> 👋</div>
-                    <div class="wb-sub">Here is what's happening in your pharmacy today.</div>
-                </div>
-                <div class="wb-pill"><?= date('D, M j Y') ?></div>
-            </div> -->
-
             <!-- Stat Cards -->
             <div class="stats-row">
 
                 <div class="stat-card">
                     <div class="stat-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                             <circle cx="9" cy="7" r="4"/>
                             <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
                             <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                         </svg>
                     </div>
-                    <div>
-                        <div class="stat-label">Total Patients Today</div>
+                    <div class="stat-body">
                         <div class="stat-value" id="statPatients"><?= $patients ?></div>
+                        <div class="stat-label">Total Patients</div>
                     </div>
                 </div>
 
                 <div class="stat-card">
                     <div class="stat-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
                             <rect x="9" y="3" width="6" height="4" rx="2"/>
                             <line x1="9" y1="12" x2="15" y2="12"/>
                             <line x1="9" y1="16" x2="12" y2="16"/>
                         </svg>
                     </div>
-                    <div>
-                        <div class="stat-label">Active Prescriptions</div>
+                    <div class="stat-body">
                         <div class="stat-value" id="statPrescriptions"><?= $prescriptions ?></div>
+                        <div class="stat-label">Active Prescriptions</div>
                     </div>
                 </div>
 
                 <div class="stat-card">
                     <div class="stat-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <rect x="2" y="5" width="20" height="14" rx="2"/>
                             <line x1="2" y1="10" x2="22" y2="10"/>
                         </svg>
                     </div>
-                    <div>
-                        <div class="stat-label">Total Transactions</div>
+                    <div class="stat-body">
                         <div class="stat-value" id="statTransactions"><?= count($transactions) ?></div>
+                        <div class="stat-label">Total Transactions</div>
                     </div>
                 </div>
 
                 <div class="stat-card">
                     <div class="stat-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="12" y1="1" x2="12" y2="23"/>
                             <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
                         </svg>
                     </div>
-                    <div>
-                        <div class="stat-label">Total Revenue</div>
+                    <div class="stat-body">
                         <div class="stat-value" id="statRevenue">₱<?= number_format($revenue, 0) ?></div>
+                        <div class="stat-label">Total Revenue</div>
                     </div>
                 </div>
 
@@ -212,22 +196,22 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                         <div class="card-title">
                             <div class="card-title-icon cti-teal">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <line x1="12" y1="1" x2="12" y2="23"/>
-                                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                    <polyline points="14 2 14 8 20 8"/>
                                 </svg>
                             </div>
                             Recent Transactions
                         </div>
-                        <!-- <div style="display:flex;gap:8px;align-items:center">
-                            <input class="search-box" id="searchTxn" placeholder="Search…" type="text">
-                        </div> -->
                     </div>
                     <div class="table-scroll">
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Invoice ID</th><th>Prescription ID</th>
-                                    <th>Pharmacist ID</th><th>Subtotal</th><th>Total</th>
+                                    <th>Invoice ID</th>
+                                    <th>Prescription ID</th>
+                                    <th>Pharmacist ID</th>
+                                    <th>Subtotal</th>
+                                    <th>Total</th>
                                 </tr>
                             </thead>
                             <tbody id="txnBody">
@@ -239,7 +223,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                                     <td class="td-bold">RX-<?= fmtPad($r['InvoiceID']) ?></td>
                                     <td class="td-sm">PH-001</td>
                                     <td class="td-sm">₱<?= number_format($r['Total'] * 1.25, 2) ?></td>
-                                    <td class="td-amt">₱<?= number_format($r['Total'],2) ?></td>
+                                    <td class="td-amt">₱<?= number_format($r['Total'], 2) ?></td>
                                 </tr>
                             <?php endforeach; endif; ?>
                             </tbody>
@@ -265,7 +249,8 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Medicine</th><th>Stock</th>
+                                    <th>Medicine</th>
+                                    <th>Stock</th>
                                 </tr>
                             </thead>
                             <tbody id="stockBody">
@@ -276,7 +261,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                             ?>
                                 <tr>
                                     <td class="td-bold"><?= htmlspecialchars($item['GenericName']) ?> <?= htmlspecialchars($item['DosageStrength']) ?></td>
-                                    <td class="td-id <?= $qty <= 50 ? 'sq-critical' : '' ?>" style="color:<?= $qty <= 50 ? '#ef4444' : '#f59e0b' ?>"><?= $qty ?> left</td>
+                                    <td style="font-weight:700;color:<?= $qty <= 50 ? '#ef4444' : '#f59e0b' ?>"><?= $qty ?> left</td>
                                 </tr>
                             <?php endforeach; endif; ?>
                             </tbody>
@@ -302,7 +287,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                         <table class="dispensed-table">
                             <thead>
                                 <tr>
-                                    <th style="width:60px">Rank</th>
+                                    <th style="width:60px;text-align:center">Rank</th>
                                     <th>Medicine</th>
                                     <th>Qty</th>
                                     <th>Distribution</th>
@@ -311,20 +296,20 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                             <tbody>
                             <?php
                             $topMeds = [
-                                ['name'=>'Metformin 500mg','qty'=>60],
-                                ['name'=>'Paracetamol 500mg','qty'=>50],
-                                ['name'=>'Ibuprofen 400mg','qty'=>40],
+                                ['name' => 'Metformin 500mg',    'qty' => 60],
+                                ['name' => 'Paracetamol 500mg',  'qty' => 50],
+                                ['name' => 'Ibuprofen 400mg',    'qty' => 40],
                             ];
                             $maxQty = $topMeds[0]['qty'];
                             foreach($topMeds as $i => $med): ?>
                                 <tr>
-                                    <td class="td-rank"><?= $i+1 ?></td>
+                                    <td class="td-rank"><?= $i + 1 ?></td>
                                     <td class="td-med"><?= htmlspecialchars($med['name']) ?></td>
                                     <td class="td-qty"><?= $med['qty'] ?></td>
                                     <td>
                                         <div class="dist-bar-wrap">
                                             <div class="dist-bar-bg">
-                                                <div class="dist-bar-fill" style="width:<?= round(($med['qty']/$maxQty)*100) ?>%"></div>
+                                                <div class="dist-bar-fill" style="width:<?= round(($med['qty'] / $maxQty) * 100) ?>%"></div>
                                             </div>
                                             <span class="dist-label"><?= $med['qty'] ?></span>
                                         </div>
@@ -361,8 +346,8 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                             <tbody>
                             <?php
                             $expiring = [
-                                ['name'=>'Paracetamol 500mg','expiry'=>'Jun 30, 2026','months'=>4,'class'=>'status-warn'],
-                                ['name'=>'Ciprofloxacin 500mg','expiry'=>'Jul 31, 2026','months'=>5,'class'=>'status-warn'],
+                                ['name' => 'Paracetamol 500mg',   'expiry' => 'Jun 30, 2026', 'months' => 4, 'class' => 'status-warn'],
+                                ['name' => 'Ciprofloxacin 500mg', 'expiry' => 'Jul 31, 2026', 'months' => 5, 'class' => 'status-warn'],
                             ];
                             foreach($expiring as $e): ?>
                                 <tr>
