@@ -363,7 +363,7 @@ ul     { list-style: none; }
 }
 
 /* ── Cards ── */
-.card { background: #fff; border-radius: var(--radius); border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.card { background: #fff; border-radius: var(--radius); border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.25); }
 .card-head {
     display: flex; align-items: center; justify-content: space-between;
     background-color: #fff;
@@ -697,15 +697,15 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
 
 .rx-med-table { width: 100%; border-collapse: collapse; font-size: .845rem; }
 
-.rx-med-table thead th {
-    position: sticky; top: 0; z-index: 10;
-    padding: 8px 12px;
+.med-table thead th {
+    padding: 10px 12px;
     text-align: left;
-    font-size: .7rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: .08em;
+    font-size: .62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
     color: #fff;
     background: #1e2d40;
-    border-bottom: 1px solid var(--cyan-border);
     white-space: nowrap;
 }
 .rx-med-table thead th:first-child { width: 44px; text-align: center; }
@@ -715,7 +715,12 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
 .rx-med-table tbody tr:hover { background: #B3C8CF; }
 .rx-med-table tbody tr.is-selected { background: #aad8f9; }
 
-.rx-med-table tbody td { padding: 12px 12px; color: #374151; vertical-align: middle; }
+.med-table tbody td {
+    padding: 8px 10px;
+    color: #475569;
+    vertical-align: middle;
+    font-size: .72rem;
+}
 .rx-med-table tbody td:first-child { text-align: center; }
 
 .rx-check { width: 18px; height: 18px; border-radius: 4px; cursor: pointer; accent-color: #ffffff; }
@@ -931,7 +936,7 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 18px;
+    padding: 20px 24px 16px;
     gap: 12px;
     flex-wrap: wrap;
 }
@@ -971,6 +976,14 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
 .ld-expiring { background: #f59e0b; }
 .ld-low      { background: #f97316; }
 .ld-critical { background: #ef4444; }
+
+.stock-legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
 
 /* ── Search input ── */
 .inv-search {
@@ -1017,8 +1030,9 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
     background: #fff;
     border-radius: var(--radius);
     border: 1px solid #e2e8f0;
-    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.25);
     overflow: hidden;
+    margin: 0 2px;
 }
 
 /* ── Table wrapper ── */
@@ -1029,12 +1043,12 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
     font-size: .845rem;
 }
 .med-table thead th {
-    padding: 12px 16px;
+    padding: 9px 10px;
     text-align: left;
-    font-size: .65rem;
+    font-size: .60rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: .09em;
+    letter-spacing: .06em;
     color: #fff;
     background: #1e2d40;
     white-space: nowrap;
@@ -1046,9 +1060,10 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
 .med-table tbody tr:last-child { border-bottom: none; }
 .med-table tbody tr:hover { background: #f8fafc; }
 .med-table tbody td {
-    padding: 13px 16px;
+    padding: 10px 12px;
     color: #475569;
     vertical-align: middle;
+    font-size: .78rem;
 }
 
 /* ── Column styles ── */
@@ -1097,6 +1112,7 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
     justify-content: center;
 }
 .modal-overlay.active { display: flex; }
+.modal-overlay.show   { display: flex; }
 
 /* ── Modal box ── */
 .modal-box {
@@ -1264,4 +1280,20 @@ tbody td { padding: 13px 18px; color: #475569; vertical-align: middle; }
     .invoices-toolbar { flex-direction: column; align-items: flex-start; }
     .inv-search { width: 100%; }
     .invoices-controls { width: 100%; flex-wrap: wrap; }
+}
+
+.med-col-contra,
+.med-col-prec {
+    max-width: 140px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.med-col-batch,
+.med-col-id,
+.med-col-dose,
+.med-col-expiry,
+.med-col-mfr {
+    white-space: nowrap;
 }

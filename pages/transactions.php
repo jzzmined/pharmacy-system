@@ -7,31 +7,35 @@ $page_title = 'Invoices';
 try {
     $db = getDB();
 
-    // Fetch all invoices with related data
     $s = $db->prepare("
         SELECT
             i.InvoiceID,
-            pr.PrescriptionID,
+            i.PrescriptionID,
             i.PharmacistID,
-            SUM(pd.QuantityPrescribed)  AS DispenseQty,
-            0                           AS UnitPrice,
-            0                           AS Discount,
+            i.DispenseQuantity AS DispenseQty,
+            i.UnitPrice,
+            i.Discount,
             i.Subtotal,
             i.Total,
             i.Status,
             pr.DatePrescribed
         FROM invoices i
-        JOIN prescriptions pr        ON i.PrescriptionID = pr.PrescriptionID
-        JOIN prescriptiondetails pd  ON pr.PrescriptionID = pd.PrescriptionID
-        GROUP BY i.InvoiceID
+        JOIN prescriptions pr ON i.PrescriptionID = pr.PrescriptionID
         ORDER BY pr.DatePrescribed DESC
     ");
     $s->execute();
     $invoices = $s->fetchAll();
 
+    // TEMPORARY DEBUG — remove after fixing
+    echo '<pre style="position:fixed;top:0;right:0;background:#fff;z-index:9999;padding:10px;font-size:12px;">';
+    echo 'Row count: ' . count($invoices) . "\n";
+    print_r($invoices);
+    echo '</pre>';
+
 } catch (PDOException $e) {
-    // Fallback: empty array on error — table will show empty state
     $invoices = [];
+    // TEMPORARY DEBUG — remove after fixing
+    die('<pre style="color:red">DB ERROR: ' . $e->getMessage() . '</pre>');
 }
 
 function fmtPad($n, $len = 3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
@@ -104,7 +108,7 @@ function statusClass($s) {
                 </svg>
             </a>
 
-            <a href="patients.php" class="nav-item" data-label="Patients">
+            <a href="admin.php" class="nav-item" data-label="Patients">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                     <circle cx="9" cy="7" r="4"/>
@@ -113,12 +117,12 @@ function statusClass($s) {
                 </svg>
             </a>
 
-            <a href="users.php" class="nav-item" data-label="Users">
+            <!-- <a href="users.php" class="nav-item" data-label="Users">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="8" r="4"/>
                     <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
                 </svg>
-            </a>
+            </a> -->
 
         </nav>
 
