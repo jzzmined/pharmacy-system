@@ -11,6 +11,7 @@ try {
     $s = $db->prepare("
         SELECT
             md.MedDet,
+            md.UnitPrice,
             m.MedicationID,
             m.GenericName,
             m.BrandName,
@@ -59,13 +60,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         // Insert patient
-        $s = $db->prepare("INSERT INTO patients (FullName, Age, Gender, MedicalCondition, ContactInformation) VALUES (?,?,?,?,?)");
+        $s = $db->prepare("INSERT INTO patients (FullName, Age, Gender, MedicalConditions, ContactInfo) VALUES (?,?,?,?,?)");
         $s->execute([$full_name, $age, $gender, $condition, $contact]);
         $patient_id = $db->lastInsertId();
 
         // Insert prescription
-        $s = $db->prepare("INSERT INTO prescriptions (PatientID, DoctorID, DatePrescribed, PharmacistID) VALUES (?,?,CURDATE(),?)");
-        $s->execute([$patient_id, $doctor_id ?: null, $_SESSION['user_id'] ?? 1]);
+        $s = $db->prepare("INSERT INTO prescriptions (PatientID, DoctorID, DatePrescribed, ExpirationDate) VALUES (?,?,CURDATE(), DATE_ADD(CURDATE(), INTERVAL 1 MONTH))");
+        $s->execute([$patient_id, $doctor_id ?: null]);
         $prescription_id = $db->lastInsertId();
 
         // Insert prescription details + update stock
@@ -74,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $qty = max(1, (int)($quantities[$i] ?? 1));
 
             // Get unit price and check stock
-            $s = $db->prepare("SELECT md.StockAvailability, md.MedicationID FROM medicationdetails md WHERE MedDet = ?");
+            $s = $db->prepare("SELECT md.StockAvailability, md.MedicationID, md.UnitPrice FROM medicationdetails md WHERE MedDet = ?");
             $s->execute([$med_detail_id]);
             $med = $s->fetch();
             if (!$med) continue;
@@ -82,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 throw new Exception("Insufficient stock for medication ID $med_detail_id.");
             }
 
-            $subtotal += $qty; // UnitPrice not in DB; using qty as placeholder
+            $subtotal += $qty * $med['UnitPrice'];
 
             $s = $db->prepare("INSERT INTO prescriptiondetails (PrescriptionID, MedicationID, QuantityPrescribed, Directions) VALUES (?,?,?,'')");
             $s->execute([$prescription_id, $med['MedicationID'], $qty]);
@@ -181,13 +182,6 @@ function stockClass(int $qty): string {
                     <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                 </svg>
             </a>
-
-            <!-- <a href="users.php" class="nav-item" data-label="Users">
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="8" r="4"/>
-                    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-                </svg>
-            </a> -->
 
         </nav>
 
@@ -303,7 +297,7 @@ function stockClass(int $qty): string {
                                             data-id="<?= $m['MedDet'] ?>"
                                             data-name="<?= htmlspecialchars($m['GenericName']) ?>"
                                             data-dose="<?= htmlspecialchars($m['DosageStrength']) ?>"
-                                            data-price="0"
+                                            data-price="<?= number_format((float)$m['UnitPrice'], 2, '.', '') ?>"
                                             data-stock="<?= $qty ?>">
                                             <td>
                                                 <input class="rx-check med-checkbox" type="checkbox"
@@ -374,11 +368,59 @@ function stockClass(int $qty): string {
 <div class="toast-tray" id="toastTray"></div>
 
 <script>
-// ── State ──
+'use strict';
+
+/* ── Format helpers (from dashboard.js) ── */
+function fmtPHP(n) {
+    return '₱' + Number(n || 0).toLocaleString('en-PH', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2
+    });
+}
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s ?? '';
+    return d.innerHTML;
+}
+
+/* ── Toast helper (from dashboard.js) ── */
+function showToast(msg, type = 'ok') {
+    const tray = document.getElementById('toastTray');
+    if (!tray) return;
+    const el = document.createElement('div');
+    el.className = `toast-msg t-${type}`;
+    el.textContent = msg;
+    tray.appendChild(el);
+    setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(16px)';
+        el.style.transition = 'all .3s ease';
+        setTimeout(() => el.remove(), 300);
+    }, 3200);
+}
+
+/* ── Sidebar Toggle (from dashboard.js) ── */
+const sidebar        = document.getElementById('sidebar');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+const sidebarToggle  = document.getElementById('sidebarToggle');
+
+if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', () => {
+        sidebar.classList.toggle('open');
+        sidebarOverlay.classList.toggle('show');
+    });
+}
+if (sidebarOverlay) {
+    sidebarOverlay.addEventListener('click', () => {
+        sidebar.classList.remove('open');
+        sidebarOverlay.classList.remove('show');
+    });
+}
+
+/* ── State ── */
 let currentStep = 1;
 const selected = {}; // { medDetailId: { name, dose, price, qty } }
 
-// ── DOM refs ──
+/* ── DOM refs ── */
 const step1El   = document.getElementById('step1');
 const step2El   = document.getElementById('step2');
 const btnBack   = document.getElementById('btnBack');
@@ -391,10 +433,9 @@ const s3ind = document.getElementById('step3-indicator');
 const line1 = document.getElementById('line1');
 const line2 = document.getElementById('line2');
 
-// ── Wizard nav ──
+/* ── Wizard nav ── */
 function goNext() {
     if (currentStep === 1) {
-        // Validate patient name
         if (!document.getElementById('full_name').value.trim()) {
             showToast('Please enter the patient\'s full name.', 'warn'); return;
         }
@@ -431,49 +472,48 @@ function goBack() {
     line2.classList.remove('done');
 }
 
-// ── Build review panel ──
+/* ── Build review panel ── */
 function buildReview() {
     // Patient details
     const fields = [
-        ['Full Name',          document.getElementById('full_name').value],
-        ['Age',                document.getElementById('age').value || '—'],
-        ['Gender',             document.getElementById('gender').value || '—'],
-        ['Medical Condition',  document.getElementById('medical_condition').value || '—'],
-        ['Contact',            document.getElementById('contact_info').value || '—'],
+        ['Full Name',         document.getElementById('full_name').value],
+        ['Age',               document.getElementById('age').value || '—'],
+        ['Gender',            document.getElementById('gender').value || '—'],
+        ['Medical Condition', document.getElementById('medical_condition').value || '—'],
+        ['Contact',           document.getElementById('contact_info').value || '—'],
     ];
     const rvPat = document.getElementById('rv-patient');
-    rvPat.innerHTML = fields.map(([k,v]) =>
-        `<div class="review-row"><span class="review-key">${k}</span><span class="review-value">${v}</span></div>`
+    rvPat.innerHTML = fields.map(([k, v]) =>
+        `<div class="review-row"><span class="review-key">${esc(k)}</span><span class="review-value">${esc(v)}</span></div>`
     ).join('');
 
-    // Medicines
+    // Medicines — using fmtPHP for consistent peso formatting
     let total = 0;
     const rvMeds = document.getElementById('rv-meds');
     const rows = Object.values(selected).map(s => {
         const line = s.price * s.qty;
         total += line;
         return `<div class="review-row">
-            <span class="review-key">${s.name} <span style="font-size:.75rem;color:#94a3b8">${s.dose}</span></span>
-            <span class="review-value">× ${s.qty} &nbsp; ₱${line.toFixed(2)}</span>
+            <span class="review-key">${esc(s.name)} <span style="font-size:.75rem;color:#94a3b8">${esc(s.dose)}</span></span>
+            <span class="review-value">× ${s.qty} &nbsp; ${fmtPHP(line)}</span>
         </div>`;
     });
     rvMeds.innerHTML = rows.join('');
-    document.getElementById('rv-total').textContent = '₱' + total.toFixed(2);
+    document.getElementById('rv-total').textContent = fmtPHP(total);
 }
 
-// ── Checkbox logic ──
+/* ── Checkbox logic ── */
 document.querySelectorAll('.med-checkbox').forEach(cb => {
     cb.addEventListener('change', function () {
-        const row   = this.closest('tr');
-        const id    = this.value;
+        const row = this.closest('tr');
+        const id  = this.value;
         if (this.checked) {
             row.classList.add('is-selected');
             selected[id] = {
                 name:  row.dataset.name,
                 dose:  row.dataset.dose,
-                price: 0,
+                price: parseFloat(row.dataset.price) || 0,  // ← fixed: reads actual price
                 qty:   1,
-                input: null,
             };
         } else {
             row.classList.remove('is-selected');
@@ -495,8 +535,8 @@ function renderSelectedList() {
         const s = selected[id];
         return `<div class="sel-item">
             <div>
-                <div class="sel-name">${s.name}</div>
-                <div class="sel-dose">${s.dose}</div>
+                <div class="sel-name">${esc(s.name)}</div>
+                <div class="sel-dose">${esc(s.dose)}</div>
             </div>
             <div class="sel-qty">
                 <button type="button" class="sel-qty-btn" onclick="adjustQty('${id}', -1)">−</button>
@@ -506,7 +546,6 @@ function renderSelectedList() {
         </div>`;
     }).join('');
 
-    // Sync hidden quantity inputs
     syncQtyInputs();
 }
 
@@ -520,53 +559,25 @@ function adjustQty(id, delta) {
 }
 
 function syncQtyInputs() {
-    // Remove old hidden quantity inputs
     document.querySelectorAll('.qty-hidden').forEach(el => el.remove());
     const form = document.getElementById('rxForm');
     Object.entries(selected).forEach(([id, s]) => {
         const inp = document.createElement('input');
-        inp.type  = 'hidden';
-        inp.name  = 'quantities[]';
-        inp.value = s.qty;
+        inp.type      = 'hidden';
+        inp.name      = 'quantities[]';
+        inp.value     = s.qty;
         inp.className = 'qty-hidden';
         form.appendChild(inp);
     });
 }
 
-// ── Medicine search ──
+/* ── Medicine search ── */
 document.getElementById('medSearchInput').addEventListener('input', function () {
     const q = this.value.toLowerCase().trim();
     document.querySelectorAll('.med-row').forEach(row => {
         row.style.display = !q || row.dataset.search.includes(q) ? '' : 'none';
     });
 });
-
-// ── Toast helper ──
-function showToast(msg, type = 'ok') {
-    const tray = document.getElementById('toastTray');
-    const t = document.createElement('div');
-    t.className = `toast-msg t-${type}`;
-    t.textContent = msg;
-    tray.appendChild(t);
-    setTimeout(() => t.remove(), 3500);
-}
-
-// ── Sidebar toggle (mobile) ──
-const sidebar        = document.getElementById('sidebar');
-const sidebarOverlay = document.getElementById('sidebarOverlay');
-const sidebarToggle  = document.getElementById('sidebarToggle');
-if (sidebarToggle) {
-    sidebarToggle.addEventListener('click', () => {
-        sidebar.classList.toggle('open');
-        sidebarOverlay.classList.toggle('show');
-    });
-}
-if (sidebarOverlay) {
-    sidebarOverlay.addEventListener('click', () => {
-        sidebar.classList.remove('open');
-        sidebarOverlay.classList.remove('show');
-    });
-}
 </script>
 
 </body>

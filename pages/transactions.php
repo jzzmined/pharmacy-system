@@ -26,15 +26,8 @@ try {
     $s->execute();
     $invoices = $s->fetchAll();
 
-    // TEMPORARY DEBUG — remove after fixing
-    echo '<pre style="position:fixed;top:0;right:0;background:#fff;z-index:9999;padding:10px;font-size:12px;">';
-    echo 'Row count: ' . count($invoices) . "\n";
-    print_r($invoices);
-    echo '</pre>';
-
 } catch (PDOException $e) {
     $invoices = [];
-    // TEMPORARY DEBUG — remove after fixing
     die('<pre style="color:red">DB ERROR: ' . $e->getMessage() . '</pre>');
 }
 
@@ -116,13 +109,6 @@ function statusClass($s) {
                     <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                 </svg>
             </a>
-
-            <!-- <a href="users.php" class="nav-item" data-label="Users">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="8" r="4"/>
-                    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-                </svg>
-            </a> -->
 
         </nav>
 
@@ -221,20 +207,22 @@ function statusClass($s) {
 <div class="toast-tray" id="toastTray"></div>
 
 <script>
+'use strict';
+
 // ── Live search + status filter ──
-const searchInput = document.getElementById('invSearch');
+const searchInput  = document.getElementById('invSearch');
 const filterSelect = document.getElementById('invFilter');
-const rows = document.querySelectorAll('#invBody tr[data-status]');
+const rows         = document.querySelectorAll('#invBody tr[data-status]');
 
 function applyFilters() {
-    const q = searchInput.value.toLowerCase().trim();
+    const q      = searchInput.value.toLowerCase().trim();
     const status = filterSelect.value.toLowerCase();
 
     rows.forEach(row => {
-        const inv    = row.dataset.inv    || '';
-        const rx     = row.dataset.rx     || '';
-        const ph     = row.dataset.ph     || '';
-        const rowSt  = row.dataset.status || '';
+        const inv   = row.dataset.inv    || '';
+        const rx    = row.dataset.rx     || '';
+        const ph    = row.dataset.ph     || '';
+        const rowSt = row.dataset.status || '';
 
         const matchSearch = !q || inv.includes(q) || rx.includes(q) || ph.includes(q);
         const matchStatus = !status || rowSt === status;
