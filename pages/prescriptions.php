@@ -308,7 +308,7 @@ function stockClass(int $qty): string {
                                 </div>
                             </div>
 
-                            <div class="rx-patient-info-card" id="patientInfoCard">
+                            <!-- <div class="rx-patient-info-card" id="patientInfoCard">
                                 <h3>
                                     Selected Patient
                                     <span class="pid-badge" id="patientIdBadge">PID-000</span>
@@ -335,7 +335,7 @@ function stockClass(int $qty): string {
                                         <span class="info-value" id="infoCondition">—</span>
                                     </div>
                                 </div>
-                            </div>
+                            </div> -->
 
                         </div><!-- /rx-right-col -->
                     </div><!-- /rx-body -->
@@ -478,7 +478,6 @@ if (sidebarOverlay) {
 /* ── Patient Search ── */
 const patientSearchInput = document.getElementById('patientSearchInput');
 const patientSearchBody  = document.getElementById('patientSearchBody');
-const patientInfoCard    = document.getElementById('patientInfoCard');
 const btnClearPatient    = document.getElementById('btnClearPatient');
 
 patientSearchInput.addEventListener('input', function () {
@@ -518,13 +517,14 @@ function selectPatient(row) {
     row.classList.add('is-selected');
     const pid = row.dataset.pid, name = row.dataset.name, age = row.dataset.age,
           gender = row.dataset.gender, contact = row.dataset.contact, condition = row.dataset.condition;
-    document.getElementById('patientIdBadge').textContent  = 'PID-' + String(pid).padStart(3, '0');
-    document.getElementById('infoName').textContent        = name      || '—';
-    document.getElementById('infoAge').textContent         = age       || '—';
-    document.getElementById('infoGender').textContent      = gender    || '—';
-    document.getElementById('infoContact').textContent     = contact   || '—';
-    document.getElementById('infoCondition').textContent   = condition || '—';
-    patientInfoCard.classList.add('visible');
+        /* Populate info card */
+    // document.getElementById('patientIdBadge').textContent  = 'PID-' + String(pid).padStart(3, '0');
+    // document.getElementById('infoName').textContent        = name      || '—';
+    // document.getElementById('infoAge').textContent         = age       || '—';
+    // document.getElementById('infoGender').textContent      = gender    || '—';
+    // document.getElementById('infoContact').textContent     = contact   || '—';
+    // document.getElementById('infoCondition').textContent   = condition || '—';
+    
     document.getElementById('full_name').value         = name;
     document.getElementById('age').value               = age;
     document.getElementById('medical_condition').value = condition;
@@ -545,7 +545,6 @@ function clearPatient() {
     document.getElementById('contact_info').value      = '';
     document.getElementById('gender').selectedIndex    = 0;
     document.getElementById('existingPatientId').value = '0';
-    patientInfoCard.classList.remove('visible');
     btnClearPatient.style.display = 'none';
     patientSearchInput.value = '';
     patientSearchBody.innerHTML = `<tr><td colspan="5" class="patient-search-empty">Type to search patients…</td></tr>`;
