@@ -7,37 +7,76 @@ $page_title = 'Dashboard';
 try {
     $db = getDB();
 
-    $s = $db->prepare("SELECT IFNULL(SUM(i.Total),0) FROM invoices i
-        JOIN prescriptions pr ON i.PrescriptionID=pr.PrescriptionID
-        WHERE DATE(pr.DatePrescribed)=CURDATE()");
+    $s = $db->prepare("SELECT IFNULL(SUM(Total),0) FROM invoices WHERE Status='Completed'");
     $s->execute(); $revenue = (float)$s->fetchColumn();
 
-    $s = $db->prepare("SELECT COUNT(DISTINCT PatientID) FROM prescriptions WHERE DATE(DatePrescribed)=CURDATE()");
+    $s = $db->prepare("SELECT COUNT(*) FROM patients");
     $s->execute(); $patients = (int)$s->fetchColumn();
 
-    $s = $db->prepare("SELECT m.GenericName, m.BrandName, m.DosageStrength,
-        SUM(md.StockAvailability) AS TotalStock
-        FROM medications m JOIN medicationdetails md ON m.MedicationID=md.MedicationID
-        GROUP BY m.MedicationID HAVING TotalStock <= 200 ORDER BY TotalStock ASC LIMIT 5");
+    $s = $db->prepare("
+        SELECT m.MedicationID,
+               m.GenericName,
+               m.BrandName,
+               m.DosageStrength,
+               GetMedicationStockLevel(m.MedicationID) AS LiveStock
+        FROM medications m
+        WHERE GetMedicationStockLevel(m.MedicationID) <= 300
+        ORDER BY GetMedicationStockLevel(m.MedicationID) ASC
+        LIMIT 8
+    ");
     $s->execute(); $lowItems = $s->fetchAll(); $lowCount = count($lowItems);
 
-    $s = $db->prepare("SELECT i.InvoiceID, p.FullName AS PatientName,
-        GROUP_CONCAT(m.GenericName SEPARATOR ', ') AS Medicines,
+    $s = $db->prepare("SELECT i.InvoiceID, i.PharmacistID, i.Status,
+        p.FullName AS PatientName,
+        GROUP_CONCAT(DISTINCT m.GenericName SEPARATOR ', ') AS Medicines,
         i.Total, pr.DatePrescribed
         FROM invoices i
         JOIN prescriptions pr ON i.PrescriptionID=pr.PrescriptionID
         JOIN patients p ON pr.PatientID=p.PatientID
-        JOIN prescriptiondetails pd ON pr.PrescriptionID=pd.PrescriptionID
-        JOIN medications m ON pd.MedicationID=m.MedicationID
-        GROUP BY i.InvoiceID ORDER BY pr.DatePrescribed DESC LIMIT 10");
+        LEFT JOIN prescriptiondetails pd ON pr.PrescriptionID=pd.PrescriptionID
+        LEFT JOIN medications m ON pd.MedicationID=m.MedicationID
+        GROUP BY i.InvoiceID ORDER BY i.InvoiceID DESC LIMIT 10");
     $s->execute(); $transactions = $s->fetchAll();
 
-    $s = $db->prepare("SELECT COUNT(*) FROM prescriptions WHERE DATE(DatePrescribed)=CURDATE()");
+    $s = $db->prepare("SELECT COUNT(*) FROM prescriptions");
     $s->execute(); $prescriptions = (int)$s->fetchColumn();
+
+    // Top Dispensed Medicines — real data from prescriptiondetails + invoices (Completed only)
+    $s = $db->prepare("
+        SELECT CONCAT(m.GenericName, ' ', m.DosageStrength) AS MedName,
+               SUM(i.DispenseQuantity) AS TotalQty
+        FROM invoices i
+        JOIN prescriptions pr      ON i.PrescriptionID  = pr.PrescriptionID
+        JOIN prescriptiondetails pd ON pd.PrescriptionID = pr.PrescriptionID
+        JOIN medications m          ON pd.MedicationID   = m.MedicationID
+        WHERE i.Status = 'Completed'
+        GROUP BY m.MedicationID
+        ORDER BY TotalQty DESC
+        LIMIT 5
+    ");
+    $s->execute(); $topMedsData = $s->fetchAll();
+
+    // Expiring Soon — medications expiring within 6 months, grouped by medication
+    $s = $db->prepare("
+        SELECT CONCAT(m.GenericName, ' ', m.DosageStrength) AS MedName,
+               MIN(md.ExpirationDate) AS EarliestExpiry,
+               TIMESTAMPDIFF(MONTH, CURDATE(), MIN(md.ExpirationDate)) AS MonthsLeft
+        FROM medicationdetails md
+        JOIN medications m ON md.MedicationID = m.MedicationID
+        WHERE md.ExpirationDate IS NOT NULL
+          AND md.ExpirationDate >= CURDATE()
+          AND md.ExpirationDate <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH)
+        GROUP BY m.MedicationID
+        ORDER BY EarliestExpiry ASC
+        LIMIT 8
+    ");
+    $s->execute(); $expiringData = $s->fetchAll();
 
 } catch (PDOException $e) {
     die("Database Error: " . $e->getMessage());
 }
+$topMedsData  = $topMedsData  ?? [];
+$expiringData = $expiringData ?? [];
 
 function barClass($q) { return $q <= 50 ? 'sb-red' : 'sb-amber'; }
 function sqClass($q)  { return $q <= 50 ? 'sq-critical' : 'sq-low'; }
@@ -60,25 +99,23 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
     <!-- ══ SIDEBAR ══ -->
     <aside class="sidebar" id="sidebar">
 
-        <div class="sidebar-brand">
+                <div class="sidebar-brand">
             <div class="brand-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/>
-                    <line x1="12" y1="8" x2="12" y2="16"/>
-                    <line x1="8"  y1="12" x2="16" y2="12"/>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <rect x="3" y="3" width="18" height="18" rx="3"/>
+                    <line x1="12" y1="7" x2="12" y2="17"/>
+                    <line x1="7"  y1="12" x2="17" y2="12"/>
                 </svg>
             </div>
-            <span class="brand-name">Pharma<br>Care</span>
+            <span class="brand-name">Pharma<br>Care<span style="font-size:0.6em;vertical-align:super;margin-left:1px;opacity:0.7;">&#9825;</span></span>
         </div>
 
         <nav class="sidebar-nav">
 
             <a href="dashboard.php" class="nav-item active" data-label="Dashboard">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="3" width="7" height="7" rx="1"/>
-                    <rect x="14" y="3" width="7" height="7" rx="1"/>
-                    <rect x="14" y="14" width="7" height="7" rx="1"/>
-                    <rect x="3" y="14" width="7" height="7" rx="1"/>
+                    <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/>
+                    <polyline points="9 21 9 12 15 12 15 21"/>
                 </svg>
             </a>
 
@@ -86,28 +123,33 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
                     <rect x="9" y="3" width="6" height="4" rx="2"/>
+                    <path d="M9 12h6M9 16h4"/>
                 </svg>
             </a>
 
             <a href="transactions.php" class="nav-item" data-label="Transactions">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="2" y="5" width="20" height="14" rx="2"/>
-                    <line x1="2" y1="10" x2="22" y2="10"/>
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <circle cx="12" cy="15" r="3"/>
+                    <polyline points="12 13.5 12 15 13 16"/>
                 </svg>
             </a>
 
             <a href="inventory.php" class="nav-item" data-label="Medications">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+                    <rect x="2" y="9" width="20" height="6" rx="3"/>
+                    <line x1="12" y1="9" x2="12" y2="15"/>
+                    <circle cx="7" cy="12" r="2.5" fill="currentColor" stroke="none" opacity="0.3"/>
                 </svg>
             </a>
 
             <a href="admin.php" class="nav-item" data-label="Admin">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                    <circle cx="9" cy="7" r="4"/>
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    <circle cx="12" cy="8" r="3"/>
+                    <path d="M5 20a7 7 0 0 1 14 0"/>
+                    <circle cx="19" cy="19" r="2"/>
+                    <path d="M19 15v2M19 21v1M15.5 17l1.5 1M22.5 21l-1.5-1M15.5 21l1.5-1M22.5 17l-1.5 1"/>
                 </svg>
             </a>
 
@@ -132,10 +174,10 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                 <div class="stat-card">
                     <div class="stat-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                            <circle cx="9" cy="7" r="4"/>
-                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                            <circle cx="9" cy="7" r="3"/>
+                            <path d="M2 20a7 7 0 0 1 14 0"/>
+                            <circle cx="17" cy="8" r="2.5"/>
+                            <path d="M22 20a5 5 0 0 0-5-5"/>
                         </svg>
                     </div>
                     <div class="stat-body">
@@ -149,8 +191,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
                             <rect x="9" y="3" width="6" height="4" rx="2"/>
-                            <line x1="9" y1="12" x2="15" y2="12"/>
-                            <line x1="9" y1="16" x2="12" y2="16"/>
+                            <text x="8" y="16" font-size="6" stroke="none" fill="currentColor" font-weight="bold">Rx</text>
                         </svg>
                     </div>
                     <div class="stat-body">
@@ -162,8 +203,10 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                 <div class="stat-card">
                     <div class="stat-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="2" y="5" width="20" height="14" rx="2"/>
-                            <line x1="2" y1="10" x2="22" y2="10"/>
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <circle cx="12" cy="15" r="3"/>
+                            <polyline points="12 13.5 12 15 13 16"/>
                         </svg>
                     </div>
                     <div class="stat-body">
@@ -175,8 +218,9 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                 <div class="stat-card">
                     <div class="stat-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="12" y1="1" x2="12" y2="23"/>
-                            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                            <rect x="2" y="4" width="20" height="16" rx="2"/>
+                            <line x1="12" y1="9" x2="12" y2="15"/>
+                            <path d="M15 9.5H10.5a1.5 1.5 0 0 0 0 3h3a1.5 1.5 0 0 1 0 3H9"/>
                         </svg>
                     </div>
                     <div class="stat-body">
@@ -196,34 +240,42 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                         <div class="card-title">
                             <div class="card-title-icon cti-teal">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                    <polyline points="14 2 14 8 20 8"/>
+                                    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+                                    <rect x="9" y="3" width="6" height="4" rx="2"/>
+                                    <line x1="9" y1="12" x2="15" y2="12"/>
+                                    <line x1="9" y1="16" x2="13" y2="16"/>
                                 </svg>
                             </div>
                             Recent Transactions
                         </div>
+                        <a href="transactions.php" style="font-size:.75rem;color:#6366f1;font-weight:600;text-decoration:none;">View All →</a>
                     </div>
-                    <div class="table-scroll">
-                        <table>
+                    <div class="table-scroll" style="max-height:420px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#cbd5e1 #f1f5f9;">
+                        <table style="width:100%;">
                             <thead>
                                 <tr>
                                     <th>Invoice ID</th>
-                                    <th>Prescription ID</th>
-                                    <th>Pharmacist ID</th>
-                                    <th>Subtotal</th>
+                                    <th>Patient</th>
                                     <th>Total</th>
+                                    <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody id="txnBody">
                             <?php if(empty($transactions)): ?>
-                                <tr><td colspan="5" class="empty-state">No transactions found</td></tr>
-                            <?php else: foreach($transactions as $r): ?>
+                                <tr><td colspan="4" class="empty-state">No transactions found</td></tr>
+                            <?php else: foreach($transactions as $r):
+                                $st = strtolower($r['Status'] ?? 'pending');
+                            ?>
                                 <tr>
-                                    <td class="td-id">INV-<?= fmtPad($r['InvoiceID']) ?></td>
-                                    <td class="td-bold">RX-<?= fmtPad($r['InvoiceID']) ?></td>
-                                    <td class="td-sm">PH-001</td>
-                                    <td class="td-sm">₱<?= number_format($r['Total'] * 1.25, 2) ?></td>
-                                    <td class="td-amt">₱<?= number_format($r['Total'], 2) ?></td>
+                                    <td class="td-id" style="font-weight:700;color:#6366f1;font-size:.78rem;">INV-<?= fmtPad($r['InvoiceID']) ?></td>
+                                    <td class="td-bold" style="font-weight:600;color:#1e293b;font-size:.85rem;"><?= htmlspecialchars($r['PatientName']) ?></td>
+                                    <td class="td-amt" style="font-weight:700;color:#1e293b;">₱<?= number_format((float)$r['Total'], 2) ?></td>
+                                    <td>
+                                        <span style="display:inline-block;padding:3px 12px;border-radius:999px;font-size:.72rem;font-weight:700;
+                                            <?= $st==='completed' ? 'background:#dcfce7;color:#15803d;' : ($st==='cancelled' ? 'background:#fee2e2;color:#dc2626;' : 'background:#fef9c3;color:#92400e;') ?>">
+                                            <?= $st === 'completed' ? 'Paid' : ucfirst($st) ?>
+                                        </span>
+                                    </td>
                                 </tr>
                             <?php endforeach; endif; ?>
                             </tbody>
@@ -257,11 +309,18 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                             <?php if(empty($lowItems)): ?>
                                 <tr><td colspan="2" class="empty-state">All medications well-stocked 🎉</td></tr>
                             <?php else: foreach($lowItems as $item):
-                                $qty = (int)$item['TotalStock'];
+                                $qty = (int)$item['LiveStock'];
+                                $isCritical = $qty <= 100;
                             ?>
                                 <tr>
                                     <td class="td-bold"><?= htmlspecialchars($item['GenericName']) ?> <?= htmlspecialchars($item['DosageStrength']) ?></td>
-                                    <td style="font-weight:700;color:<?= $qty <= 50 ? '#ef4444' : '#f59e0b' ?>"><?= $qty ?> left</td>
+                                    <td>
+                                        <span style="font-weight:700;color:<?= $isCritical ? '#ef4444' : '#f59e0b' ?>"><?= $qty ?> left</span>
+                                        <span style="margin-left:6px;font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:999px;
+                                            <?= $isCritical ? 'background:#fee2e2;color:#dc2626;' : 'background:#fef3c7;color:#d97706;' ?>">
+                                            <?= $isCritical ? 'Critical' : 'Low' ?>
+                                        </span>
+                                    </td>
                                 </tr>
                             <?php endforeach; endif; ?>
                             </tbody>
@@ -275,9 +334,9 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                         <div class="card-title">
                             <div class="card-title-icon cti-blue">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <line x1="18" y1="20" x2="18" y2="10"/>
-                                    <line x1="12" y1="20" x2="12" y2="4"/>
-                                    <line x1="6"  y1="20" x2="6"  y2="14"/>
+                                    <rect x="3"  y="12" width="4" height="8" rx="1"/>
+                                    <rect x="10" y="7"  width="4" height="13" rx="1"/>
+                                    <rect x="17" y="3"  width="4" height="17" rx="1"/>
                                 </svg>
                             </div>
                             Top Dispensed Medicines
@@ -294,28 +353,25 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                                 </tr>
                             </thead>
                             <tbody>
-                            <?php
-                            $topMeds = [
-                                ['name' => 'Metformin 500mg',    'qty' => 60],
-                                ['name' => 'Paracetamol 500mg',  'qty' => 50],
-                                ['name' => 'Ibuprofen 400mg',    'qty' => 40],
-                            ];
-                            $maxQty = $topMeds[0]['qty'];
-                            foreach($topMeds as $i => $med): ?>
+                            <?php if (empty($topMedsData)): ?>
+                                <tr><td colspan="4" class="empty-state" style="text-align:center;padding:20px;color:#94a3b8;">No dispensed medicines yet.</td></tr>
+                            <?php else:
+                                $maxQty = (int)$topMedsData[0]['TotalQty'];
+                                foreach($topMedsData as $i => $med): ?>
                                 <tr>
                                     <td class="td-rank"><?= $i + 1 ?></td>
-                                    <td class="td-med"><?= htmlspecialchars($med['name']) ?></td>
-                                    <td class="td-qty"><?= $med['qty'] ?></td>
+                                    <td class="td-med"><?= htmlspecialchars($med['MedName']) ?></td>
+                                    <td class="td-qty"><?= (int)$med['TotalQty'] ?></td>
                                     <td>
                                         <div class="dist-bar-wrap">
                                             <div class="dist-bar-bg">
-                                                <div class="dist-bar-fill" style="width:<?= round(($med['qty'] / $maxQty) * 100) ?>%"></div>
+                                                <div class="dist-bar-fill" style="width:<?= $maxQty > 0 ? round(((int)$med['TotalQty'] / $maxQty) * 100) : 0 ?>%"></div>
                                             </div>
-                                            <span class="dist-label"><?= $med['qty'] ?></span>
+                                            <span class="dist-label"><?= (int)$med['TotalQty'] ?></span>
                                         </div>
                                     </td>
                                 </tr>
-                            <?php endforeach; ?>
+                            <?php endforeach; endif; ?>
                             </tbody>
                         </table>
                     </div>
@@ -344,18 +400,18 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                                 </tr>
                             </thead>
                             <tbody>
-                            <?php
-                            $expiring = [
-                                ['name' => 'Paracetamol 500mg',   'expiry' => 'Jun 30, 2026', 'months' => 4, 'class' => 'status-warn'],
-                                ['name' => 'Ciprofloxacin 500mg', 'expiry' => 'Jul 31, 2026', 'months' => 5, 'class' => 'status-warn'],
-                            ];
-                            foreach($expiring as $e): ?>
-                                <tr>
-                                    <td class="td-med-name"><?= htmlspecialchars($e['name']) ?></td>
-                                    <td class="td-exp-date"><?= $e['expiry'] ?></td>
-                                    <td><span class="status-badge <?= $e['class'] ?>"><?= $e['months'] ?> months</span></td>
+                            <?php if (empty($expiringData)): ?>
+                                <tr><td colspan="3" class="empty-state" style="text-align:center;padding:20px;color:#94a3b8;">No medications expiring within 6 months.</td></tr>
+                            <?php else: foreach($expiringData as $e):
+                                $months = (int)$e['MonthsLeft'];
+                                $badgeClass = $months <= 1 ? 'status-danger' : ($months <= 3 ? 'status-warn' : 'status-ok');
+                                $label = $months <= 0 ? 'This month' : $months . ' month' . ($months > 1 ? 's' : '');
+                            ?> <tr>
+                                    <td class="td-med-name"><?= htmlspecialchars($e['MedName']) ?></td>
+                                    <td class="td-exp-date"><?= date('M d, Y', strtotime($e['EarliestExpiry'])) ?></td>
+                                    <td><span class="status-badge <?= $badgeClass ?>"><?= $label ?></span></td>
                                 </tr>
-                            <?php endforeach; ?>
+                            <?php endforeach; endif; ?>
                             </tbody>
                         </table>
                     </div>

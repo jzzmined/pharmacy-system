@@ -174,8 +174,10 @@ ul     { list-style: none; }
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    min-width: 0;
+    overflow-x: hidden;
+    width: calc(100vw - var(--sidebar-w));
 }
-
 /* ── Topbar ── */
 .topbar {
     height: var(--topbar-h);
@@ -256,7 +258,7 @@ ul     { list-style: none; }
 }
 
 /* ── Page body ── */
-.page-body { padding: 28px 30px; flex: 1; }
+.page-body { padding: 28px 16px; flex: 1; min-width: 0; box-sizing: border-box; }
 
 .page-body > * { animation: fadeUp .35s ease both; }
 .page-body > *:nth-child(1) { animation-delay: .03s; }
@@ -575,9 +577,10 @@ tbody td { padding: 13px 20px; color: #475569; vertical-align: middle; }
     border: 1px solid #e2e8f0;
     display: flex;
     flex-direction: column;
-    height: 450px;
-    gap: 12px;
+    height: auto;
+    gap: 10px;
     box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.25);
+    box-sizing: border-box;
 }
 .rx-patient-card h3 {
     font-size: .95rem;
@@ -716,7 +719,7 @@ tbody td { padding: 13px 20px; color: #475569; vertical-align: middle; }
 
 .rx-input, .rx-select {
     width: 100%;
-    padding: 11px 16px;
+    padding: 9px 16px;
     border: 1.5px solid #d1d9e3;
     border-radius: 25px;
     background: #fff;
@@ -725,6 +728,7 @@ tbody td { padding: 13px 20px; color: #475569; vertical-align: middle; }
     color: #000000;
     transition: border-color var(--ease), box-shadow var(--ease);
     appearance: none;
+    box-sizing: border-box;
 }
 .rx-input::placeholder { color: #9c9c9c; }
 .rx-input:focus, .rx-select:focus {
@@ -1044,9 +1048,10 @@ tbody td { padding: 13px 20px; color: #475569; vertical-align: middle; }
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 20px 24px 16px;
-    gap: 12px;
+    padding: 14px 16px 12px;
+    gap: 10px;
     flex-wrap: wrap;
+    min-width: 0;
 }
 .inventory-toolbar-left { display: flex; flex-direction: column; gap: 6px; }
 .inventory-title { font-size: 1.05rem; font-weight: 700; color: #111827; }
@@ -1086,37 +1091,79 @@ tbody td { padding: 13px 20px; color: #475569; vertical-align: middle; }
     border: 1px solid #e2e8f0;
     box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.25);
     overflow: hidden;
-    margin: 0 2px;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 160px);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
 }
+.med-table-wrap {
+    overflow-x: auto;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f1f5f9;
+}
+.med-table-wrap::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+}
+.med-table-wrap::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 999px;
+}
+.med-table-wrap::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+    border: 1px solid #f1f5f9;
+}
+.med-table-wrap::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+.med-table-wrap::-webkit-scrollbar-corner {
+    background: #f1f5f9;
+}
+.med-table { width: 100%; border-collapse: collapse; font-size: .78rem; table-layout: fixed; }
 
-.med-table-wrap { overflow-x: auto; }
-.med-table { width: 100%; border-collapse: collapse; font-size: .845rem; }
 .med-table thead th {
-    padding: 9px 10px;
+    padding: 10px 8px;
     text-align: left;
     font-size: .60rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: .06em;
+    letter-spacing: .05em;
     color: #fff;
     background: #1e2d40;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: table-cell;
+    visibility: visible;
 }
 .med-table tbody tr { border-bottom: 1px solid #f1f5f9; transition: background var(--ease); }
 .med-table tbody tr:last-child { border-bottom: none; }
 .med-table tbody tr:hover { background: #f8fafc; }
-.med-table tbody td { padding: 10px 12px; color: #475569; vertical-align: middle; font-size: .78rem; }
+.med-table tbody td { padding: 9px 8px; color: #475569; vertical-align: middle; font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.med-col-batch  { font-weight: 700; color: #1e293b; font-size: .82rem; }
-.med-col-id     { color: #0e7490; font-weight: 600; font-size: .82rem; }
-.med-col-name   { font-weight: 600; color: #1e293b; }
-.med-col-brand  { color: #64748b; }
-.med-col-dose   { color: #64748b; font-size: .82rem; }
-.med-col-mfr    { color: #64748b; font-size: .82rem; }
-.med-col-expiry { font-size: .82rem; color: #64748b; }
-.med-col-stock  { font-weight: 700; font-variant-numeric: tabular-nums; }
-.med-col-contra { font-size: .82rem; color: #475569; max-width: 180px; }
-.med-col-prec   { font-size: .82rem; color: #475569; max-width: 180px; }
+.med-table colgroup col:nth-child(1)  { width: 90px; }   /* Batch ID */
+.med-table colgroup col:nth-child(2)  { width: 75px; }   /* Med ID */
+.med-table colgroup col:nth-child(3)  { width: 110px; }  /* Generic Name */
+.med-table colgroup col:nth-child(4)  { width: 85px; }   /* Brand */
+.med-table colgroup col:nth-child(5)  { width: 70px; }   /* Dosage */
+.med-table colgroup col:nth-child(6)  { width: 110px; }  /* Manufacturer */
+.med-table colgroup col:nth-child(7)  { width: 90px; }   /* Expiry */
+.med-table colgroup col:nth-child(8)  { width: 80px; }   /* Unit Price */
+.med-table colgroup col:nth-child(9)  { width: 80px; }   /* Batch Stock */
+.med-table colgroup col:nth-child(10) { width: 100px; }  /* Live Total Stock */
+.med-table colgroup col:nth-child(11) { width: 130px; }  /* Contraindications */
+.med-table colgroup col:nth-child(12) { width: 130px; }  /* Precautions */
+.med-table colgroup col:nth-child(13) { width: 80px; }   /* Status */
 
 .med-col-contra,
 .med-col-prec {
