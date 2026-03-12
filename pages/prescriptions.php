@@ -4,24 +4,28 @@ require_once __DIR__ . '/../includes/config.php';
 
 $page_title = 'Prescriptions';
 
+$medications_error = '';
 try {
     $db = getDB();
 
-    // ── Medications: use GetMedicationStockLevel() function for live stock ──
+    // ── Medications: group by MedicationID to avoid duplicates from multiple batches ──
     $s = $db->prepare("
         SELECT
-            md.MedDet,
-            md.UnitPrice,
+            MIN(md.MedDet)          AS MedDet,
+            MIN(md.UnitPrice)       AS UnitPrice,
             m.MedicationID,
             m.GenericName,
             m.BrandName,
             m.DosageStrength,
-            md.Manufacturer,
-            md.ExpirationDate,
+            c.CategoryName          AS Category,
+            MIN(md.Manufacturer)    AS Manufacturer,
+            MIN(md.ExpirationDate)  AS ExpirationDate,
             GetMedicationStockLevel(m.MedicationID) AS StockAvailability
         FROM medicationdetails md
         JOIN medications m ON md.MedicationID = m.MedicationID
+        LEFT JOIN categories c ON m.CategoryID = c.CategoryID
         WHERE GetMedicationStockLevel(m.MedicationID) > 0
+        GROUP BY m.MedicationID, m.GenericName, m.BrandName, m.DosageStrength, c.CategoryName
         ORDER BY m.GenericName ASC
     ");
     $s->execute();
@@ -36,6 +40,7 @@ try {
     $patients = $s->fetchAll();
 
 } catch (PDOException $e) {
+    $medications_error = $e->getMessage();
     $medications = [];
     $doctors     = [];
     $patients    = [];
@@ -194,7 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
         }
 
         $rx_num  = str_pad($prescription_id, 3, '0', STR_PAD_LEFT);
-        $success = "✓ Prescription RX-{$rx_num} created and dispensed successfully!" .
+        $success = "<i class=\"bi bi-check-circle-fill\" style=\"color:#16a34a\"></i> Prescription RX-{$rx_num} created and dispensed successfully!" .
                    ($discount > 0 ? " Senior 20% discount of ₱" . number_format($discount, 2) . " applied." : "") .
                    " Invoice is now Pending payment — see Transactions.";
                    ($discount > 0 ? " Senior discount of ₱" . number_format($discount, 2) . " applied." : "");
@@ -202,9 +207,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
     } catch (PDOException $e) {
         // Catch trigger errors (SQLSTATE 45000) with user-friendly messages
         $msg = $e->getMessage();
-        if (str_contains($msg, 'Insufficient stock'))       $error = "⚠ Transaction blocked: Insufficient stock to complete this transaction.";
-        elseif (str_contains($msg, 'prescription has expired')) $error = "⚠ Transaction blocked: The prescription has expired.";
-        elseif (str_contains($msg, 'Invalid Age'))          $error = "⚠ Invalid age entered. Please enter an age between 0 and 120.";
+        if (str_contains($msg, 'Insufficient stock'))       $error = "<i class=\"bi bi-exclamation-triangle-fill\" style=\"color:#d97706\"></i> Transaction blocked: Insufficient stock to complete this transaction.";
+        elseif (str_contains($msg, 'prescription has expired')) $error = "<i class=\"bi bi-exclamation-triangle-fill\" style=\"color:#d97706\"></i> Transaction blocked: The prescription has expired.";
+        elseif (str_contains($msg, 'Invalid Age'))          $error = "<i class=\"bi bi-exclamation-triangle-fill\" style=\"color:#d97706\"></i> Invalid age entered. Please enter an age between 0 and 120.";
         else                                                $error = "Database error: " . $msg;
     } catch (Exception $e) {
         $error = $e->getMessage();
@@ -225,6 +230,7 @@ function stockClass(int $qty): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PharmaCare — Prescriptions</title>
     <link rel="stylesheet" href="../assets/css/main.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         /* ── Trigger / Procedure feedback badges ── */
         .rx-result.ok  { background:#dcfce7; color:#166534; border:1px solid #bbf7d0; border-radius:10px; padding:12px 18px; font-weight:600; }
@@ -245,6 +251,125 @@ function stockClass(int $qty): string {
             font-size: .72rem; color: #94a3b8; margin-left: 6px;
         }
     </style>
+    <style>
+        /* ══ OUTFIT FONT – single source ══ */
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
+
+        *, *::before, *::after { box-sizing: border-box; }
+        body, input, select, button, textarea { font-family: 'Outfit', sans-serif; }
+
+        /* ══ CONSISTENT BORDER RADIUS ══ */
+        :root { --br: 10px; --br-pill: 999px; --br-card: 14px; }
+
+        /* ══ SIDEBAR – no white box on active ══ */
+        .nav-item,
+        .nav-item:hover,
+        .nav-item.active { background: transparent !important; box-shadow: none !important; }
+
+        /* ══ SIDEBAR ICONS – white, sized, dimmed when inactive ══ */
+        .nav-item i.bi,
+        .brand-icon i.bi,
+        .sidebar-footer i.bi { color: #ffffff; }
+        .nav-item i.bi         { font-size: 1.6rem; display: block; line-height: 1; opacity: 0.45; transition: opacity .2s ease; }
+        .nav-item.active i.bi,
+        .nav-item:hover  i.bi  { opacity: 1 !important; }
+
+        /* ══ STAT CARD ICONS ══ */
+        .stat-icon i.bi { font-size: 1.7rem; color: #ffffff; }
+
+        /* ══ CARD TITLE ICONS ══ */
+        .card-title-icon i.bi {
+            font-size: 1.05rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* ══ ICON + TEXT GAP ══ */
+        .btn-with-icon, .card-title, .audit-section-head h3,
+        .backup-item, .backup-btn, .audit-btn-print, .audit-btn-send,
+        .admin-toolbar-left, .backup-header {
+            display: flex; align-items: center; gap: 8px;
+        }
+        i.bi + span, span + i.bi,
+        i.bi + strong, strong + i.bi { margin-left: 6px; }
+
+        /* ══ BUTTONS – consistent radius ══ */
+        .btn-add-user, .btn-add-med, .btn-primary, .btn-secondary,
+        .modal-btn-save, .modal-btn-cancel,
+        .audit-btn-print, .audit-btn-send,
+        .backup-btn, .audit-filter-btn,
+        .btn-mark-paid, .btn-mark-cancel,
+        .rx-search-btn { border-radius: var(--br) !important; }
+
+        /* ══ SEARCH BARS + DROPDOWNS – consistent radius ══ */
+        .inv-search, .inv-filter, .admin-search,
+        .rx-search-input, .modal-input,
+        .audit-filter-bar input[type="date"],
+        .sched-field select, .sched-field input,
+        .send-confirm-field input { border-radius: var(--br) !important; }
+
+        /* ══ ADMIN TOOLBAR ICON ══ */
+        i.bi.admin-toolbar-icon { font-size: 1.2rem; color: #64748b; }
+
+        /* ══ BACKUP ICONS ══ */
+        i.bi.backup-header-icon { font-size: 1.2rem; }
+        .backup-item-icon i.bi  { font-size: 1.4rem; display: flex; align-items: center; justify-content: center; }
+        .backup-btn i.bi        { font-size: 1rem; }
+
+        /* ══ USER ACTION BUTTONS ══ */
+        .ua-btn i.bi { font-size: 1rem; }
+
+        /* ══ AUDIT FOOTER BUTTONS ══ */
+        .audit-btn-print i.bi,
+        .audit-btn-send  i.bi { font-size: .95rem; }
+
+        /* ══ RESULT / FLASH BANNERS ══ */
+        .rx-result, .txn-result, .inv-result, .admin-flash {
+            display: flex; align-items: center; gap: 10px;
+            border-radius: var(--br);
+            padding: 12px 18px;
+            font-size: .875rem; font-weight: 600;
+            margin-bottom: 16px;
+        }
+        .rx-result.ok, .txn-result.ok, .inv-result.ok, .admin-flash-ok {
+            background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0;
+        }
+        .rx-result.err, .txn-result.err, .inv-result.err, .admin-flash-err {
+            background: #fee2e2; color: #dc2626; border: 1px solid #fecaca;
+        }
+        .rx-result i.bi, .txn-result i.bi,
+        .inv-result i.bi, .admin-flash i.bi { font-size: 1rem; flex-shrink: 0; }
+
+        /* ══ FLASH CLOSE ══ */
+        .flash-close {
+            margin-left: auto; background: none; border: none;
+            cursor: pointer; color: inherit; opacity: .6; font-size: .85rem;
+        }
+        .flash-close:hover { opacity: 1; }
+
+        /* ══ PAGINATION ══ */
+        .pagination {
+            display: flex; align-items: center; gap: 4px;
+            padding: 12px 18px; border-top: 1px solid #f1f5f9;
+            justify-content: flex-end; flex-wrap: wrap;
+        }
+        .pg-btn {
+            min-width: 32px; height: 32px; padding: 0 8px;
+            border: 1.5px solid #e2e8f0; border-radius: var(--br);
+            background: #fff; color: #475569;
+            font-family: 'Outfit', sans-serif; font-size: .8rem; font-weight: 600;
+            cursor: pointer; transition: all .15s;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .pg-btn:hover  { background: #f1f5f9; border-color: #cbd5e1; }
+        .pg-btn.active { background: #1e2d40; color: #fff; border-color: #1e2d40; }
+        .pg-btn:disabled { opacity: .4; cursor: not-allowed; }
+        .pg-info { font-size: .78rem; color: #94a3b8; margin: 0 6px; }
+
+        /* ══ CONSISTENT TABLE/CONTAINER HEIGHT ══ */
+        .card .table-scroll,
+        .inv-table-wrap,
+        .admin-table-wrap { min-height: 280px; }
+    </style>
 </head>
 <body>
 
@@ -255,59 +380,26 @@ function stockClass(int $qty): string {
     <!-- ══ SIDEBAR ══ -->
     <aside class="sidebar" id="sidebar">
                 <div class="sidebar-brand">
-            <div class="brand-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                    <rect x="3" y="3" width="18" height="18" rx="3"/>
-                    <line x1="12" y1="7" x2="12" y2="17"/>
-                    <line x1="7"  y1="12" x2="17" y2="12"/>
-                </svg>
-            </div>
             <span class="brand-name">Pharma<br>Care<span style="font-size:0.6em;vertical-align:super;margin-left:1px;opacity:0.7;">&#9825;</span></span>
         </div>
         <nav class="sidebar-nav">
             <a href="dashboard.php" class="nav-item" data-label="Dashboard">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/>
-                    <polyline points="9 21 9 12 15 12 15 21"/>
-                </svg>
-
+                <i class="bi bi-house-door-fill"></i>
             </a>
             <a href="prescriptions.php" class="nav-item active" data-label="Prescriptions">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
-                    <rect x="9" y="3" width="6" height="4" rx="2"/>
-                    <path d="M9 12h6M9 16h4"/>
-                </svg>
-
+                <i class="bi bi-file-medical-fill"></i>
             </a>
             <a href="transactions.php" class="nav-item" data-label="Transactions">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <circle cx="12" cy="15" r="3"/>
-                    <polyline points="12 13.5 12 15 13 16"/>
-                </svg>
-
+                <i class="bi bi-receipt-cutoff"></i>
             </a>
             <a href="inventory.php" class="nav-item" data-label="Inventory">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="2" y="9" width="20" height="6" rx="3"/>
-                    <line x1="12" y1="9" x2="12" y2="15"/>
-                    <circle cx="7" cy="12" r="2.5" fill="currentColor" stroke="none" opacity="0.3"/>
-                </svg>
-
+                <i class="bi bi-capsule-pill"></i>
             </a>
             <a href="admin.php" class="nav-item" data-label="Admin">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="8" r="3"/>
-                    <path d="M5 20a7 7 0 0 1 14 0"/>
-                    <circle cx="19" cy="19" r="2"/>
-                    <path d="M19 15v2M19 21v1M15.5 17l1.5 1M22.5 21l-1.5-1M15.5 21l1.5-1M22.5 17l-1.5 1"/>
-                </svg>
-
+                <i class="bi bi-shield-lock-fill"></i>
             </a>
         </nav>
-        <a href="../logout.php" class="sidebar-footer" onclick="return confirm('Log out?')" title="Logout">
+        <a href="#" class="sidebar-footer" onclick="pcConfirm({title:'Log Out',body:'Are you sure you want to log out of PharmaCare?',okText:'Log Out',type:'warning',icon:'bi-box-arrow-right',onOk:()=>window.location.href='../logout.php'})" title="Logout">
             <div class="s-avatar"><?= strtoupper(substr($_SESSION['full_name'] ?? 'P', 0, 1)) ?></div>
         </a>
     </aside>
@@ -319,10 +411,10 @@ function stockClass(int $qty): string {
         <div class="page-body">
 
             <?php if ($success): ?>
-                <div class="rx-result ok" style="margin-bottom:18px"><?= htmlspecialchars($success) ?></div>
+                <div class="rx-result ok" style="margin-bottom:18px"><?= $success ?></div>
             <?php endif; ?>
             <?php if ($error): ?>
-                <div class="rx-result err" style="margin-bottom:18px"><?= htmlspecialchars($error) ?></div>
+                <div class="rx-result err" style="margin-bottom:18px"><?= $error ?></div>
             <?php endif; ?>
 
             <!-- Step Wizard -->
@@ -395,8 +487,7 @@ function stockClass(int $qty): string {
                             </div>
                             <button type="button" id="btnClearPatient"
                                 style="display:none;margin-top:auto;padding:7px 14px;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;color:#64748b;font-size:.8rem;cursor:pointer;flex-shrink:0;"
-                                onclick="clearPatient()">
-                                ✕ Clear &amp; Use New Patient
+                                onclick="clearPatient()"><i class="bi bi-x-circle-fill"></i> Clear &amp; Use New Patient
                             </button>
                         </div>
 
@@ -435,7 +526,7 @@ function stockClass(int $qty): string {
                             <div id="patientHistoryCard" style="display:none;margin-top:16px;">
                                 <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
                                     <div style="background:#1e293b;color:#fff;padding:10px 16px;font-size:.85rem;font-weight:700;display:flex;align-items:center;justify-content:space-between;">
-                                        <span>📋 Patient Prescription History</span>
+                                        <span><i class="bi bi-clipboard2-pulse-fill"></i> Patient Prescription History</span>
                                         <span id="historyPatientName" style="font-size:.78rem;color:#94a3b8"></span>
                                     </div>
                                     <div style="overflow-x:auto;">
@@ -469,13 +560,28 @@ function stockClass(int $qty): string {
                             </div>
                             <div class="rx-search-row">
                                 <input class="rx-search-input" type="text" id="medSearchInput" placeholder="Search medications…" autocomplete="off">
+                                <select id="medCategoryFilter" class="rx-search-input" style="max-width:200px;cursor:pointer">
+                                    <option value="">All Categories</option>
+                                    <?php
+                                    $cats = array_unique(array_filter(array_column($medications, 'Category')));
+                                    sort($cats);
+                                    foreach ($cats as $cat): ?>
+                                        <option value="<?= htmlspecialchars(strtolower($cat)) ?>"><?= htmlspecialchars($cat) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
+                            <?php if ($medications_error): ?>
+                            <div style="background:#fff0f0;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin:8px 0;font-size:.82rem;color:#b91c1c;font-weight:500">
+                                <strong>DB Error:</strong> <?= htmlspecialchars($medications_error) ?>
+                            </div>
+                            <?php endif; ?>
                             <div class="rx-med-table-wrap">
                                 <table class="rx-med-table">
                                     <thead>
                                         <tr>
-                                            <th>✓</th>
+                                            <th><i class="bi bi-check2-circle"></i></th>
                                             <th>Generic Name</th>
+                                            <th>Category</th>
                                             <th>Brand</th>
                                             <th>Live Stock</th>
                                             <th>Unit Price</th>
@@ -485,13 +591,14 @@ function stockClass(int $qty): string {
                                     </thead>
                                     <tbody id="medTableBody">
                                     <?php if (empty($medications)): ?>
-                                        <tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8">No medications available</td></tr>
+                                        <tr><td colspan="8" style="text-align:center;padding:20px;color:#94a3b8">No medications available</td></tr>
                                     <?php else: foreach ($medications as $m):
                                         $qty = (int)$m['StockAvailability'];
                                         $sc  = stockClass($qty);
                                     ?>
                                         <tr class="med-row"
-                                            data-search="<?= strtolower($m['GenericName'] . ' ' . $m['BrandName'] . ' ' . $m['Manufacturer']) ?>"
+                                            data-search="<?= strtolower($m['GenericName'] . ' ' . $m['BrandName'] . ' ' . $m['Manufacturer'] . ' ' . ($m['Category'] ?? '')) ?>"
+                                            data-category="<?= strtolower(htmlspecialchars($m['Category'] ?? '')) ?>"
                                             data-id="<?= $m['MedDet'] ?>"
                                             data-name="<?= htmlspecialchars($m['GenericName']) ?>"
                                             data-dose="<?= htmlspecialchars($m['DosageStrength']) ?>"
@@ -506,6 +613,15 @@ function stockClass(int $qty): string {
                                             <td>
                                                 <strong><?= htmlspecialchars($m['GenericName']) ?></strong>
                                                 <span style="font-size:.75rem;color:#94a3b8;margin-left:4px"><?= htmlspecialchars($m['DosageStrength']) ?></span>
+                                            </td>
+                                            <td>
+                                                <?php if (!empty($m['Category'])): ?>
+                                                    <span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:.72rem;font-weight:600;background:#e0e7ff;color:#4338ca">
+                                                        <?= htmlspecialchars($m['Category']) ?>
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span style="color:#cbd5e1">—</span>
+                                                <?php endif; ?>
                                             </td>
                                             <td style="color:#64748b"><?= htmlspecialchars($m['BrandName']) ?></td>
                                             <td class="<?= $sc ?>"><?= $qty ?></td>
@@ -557,7 +673,7 @@ function stockClass(int $qty): string {
                             </div>
                             <!-- DB Routines notice -->
                             <div style="margin-top:12px;padding:8px 12px;background:#f0f4ff;border-radius:8px;font-size:.75rem;color:#6366f1">
-                                ℹ️ On submit: <strong>CreateNewPrescription</strong> → <strong>CheckPrescriptionValidity</strong> → <strong>CalculateSeniorDiscount</strong> → <strong>DispenseMedication</strong>
+                                <i class="bi bi-info-circle-fill" style="color:#6366f1"></i> On submit: <strong>CreateNewPrescription</strong> → <strong>CheckPrescriptionValidity</strong> → <strong>CalculateSeniorDiscount</strong> → <strong>DispenseMedication</strong>
                             </div>
                         </div>
                     </div>
@@ -567,7 +683,7 @@ function stockClass(int $qty): string {
                 <div style="margin-top:20px;display:flex;justify-content:flex-end;gap:10px;">
                     <button type="button" class="btn-secondary" id="btnBack" style="display:none" onclick="goBack()">← Back</button>
                     <button type="button" class="btn-primary"   id="btnNext"   onclick="goNext()">Review & Submit →</button>
-                    <button type="submit"  class="btn-primary"  id="btnSubmit" style="display:none">✓ Confirm &amp; Create Prescription</button>
+                    <button type="submit"  class="btn-primary"  id="btnSubmit" style="display:none"><i class="bi bi-check-circle-fill"></i> Confirm &amp; Create Prescription</button>
                 </div>
 
             </form>
@@ -801,7 +917,7 @@ function buildReview() {
         const line = s.price * s.qty; subtotal += line;
         return `<div class="review-row">
             <span class="review-key">${esc(s.name)} <span style="font-size:.75rem;color:#94a3b8">${esc(s.dose)}</span></span>
-            <span class="review-value">× ${s.qty} &nbsp; ${fmtPHP(line)}</span>
+            <span class="review-value">${fmtPHP(s.price)} &nbsp;×&nbsp; ${s.qty}</span>
         </div>`;
     }).join('');
 
@@ -876,7 +992,7 @@ function renderSelectedList() {
                 <button type="button" onclick="adjustQty('${id}', 1)"
                     style="width:28px;height:28px;border-radius:6px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#334155;font-size:1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">+</button>
                 <button type="button" onclick="removeMed('${id}')"
-                    style="width:28px;height:28px;border-radius:6px;border:1.5px solid #fecaca;background:#fff5f5;color:#ef4444;font-size:.85rem;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:4px;">✕</button>
+                    style="width:28px;height:28px;border-radius:6px;border:1.5px solid #fecaca;background:#fff5f5;color:#ef4444;font-size:.85rem;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:4px;"><i class="bi bi-x-lg"></i></button>
             </div>
         </div>`;
     }).join('');
@@ -911,12 +1027,18 @@ function syncQtyInputs() {
     });
 }
 
-document.getElementById('medSearchInput').addEventListener('input', function () {
-    const q = this.value.toLowerCase().trim();
+document.getElementById('medSearchInput').addEventListener('input', filterMeds);
+document.getElementById('medCategoryFilter').addEventListener('change', filterMeds);
+
+function filterMeds() {
+    const q   = document.getElementById('medSearchInput').value.toLowerCase().trim();
+    const cat = document.getElementById('medCategoryFilter').value.toLowerCase();
     document.querySelectorAll('.med-row').forEach(row => {
-        row.style.display = !q || row.dataset.search.includes(q) ? '' : 'none';
+        const matchSearch = !q   || row.dataset.search.includes(q);
+        const matchCat    = !cat || row.dataset.category === cat;
+        row.style.display = (matchSearch && matchCat) ? '' : 'none';
     });
-});
+}
 </script>
 
 </body>

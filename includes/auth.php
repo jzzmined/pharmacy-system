@@ -1,5 +1,12 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'secure'   => false,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
     session_start();
 }
 
@@ -13,7 +20,7 @@ function attemptLogin($email, $password) {
         $user = $s->fetch();
 
         if ($user && password_verify($password, $user['Password'])) {
-            session_start();
+            $_SESSION['logged_in'] = true;
             $_SESSION['user_id']   = $user['UserID'];
             $_SESSION['full_name'] = $user['FullName'];
             $_SESSION['role']      = $user['Role'];

@@ -21,9 +21,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_s
         $unit_price = (float) ($_POST['unit_price'] ?? 0);
         $stock_qty = (int) ($_POST['stock_availability'] ?? 0);
         $expiration_date = $_POST['expiration_date'] ?? '';
-        $contraindications = trim($_POST['contraindications'] ?? '');
-        $precautions = trim($_POST['precautions'] ?? '');
         $existing_med_id = (int) ($_POST['existing_med_id'] ?? 0);
+        $category_id = (int) ($_POST['category_id'] ?? 0) ?: null;
 
         if ($existing_med_id > 0) {
             // Adding to existing — only need stock qty and expiry
@@ -55,13 +54,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_s
 
             $total_stock = $result['Total_Stock_Available'] ?? $stock_qty;
             $batch_id = $result['Stock_Batch_ID'] ?? '?';
-            $success = "✓ Stock batch added via AddMedicationStock(). Batch ID: BATCH-" . str_pad($batch_id, 3, '0', STR_PAD_LEFT) .
+            $success = "<i class=\"bi bi-check-circle-fill\" style=\"color:#16a34a\"></i> Stock batch added via AddMedicationStock(). Batch ID: BATCH-" . str_pad($batch_id, 3, '0', STR_PAD_LEFT) .
                 " | Total stock now: " . $total_stock;
 
         } else {
-            // New medication: insert into medications first, then CALL AddMedicationStock()
-            $s = $db->prepare("INSERT INTO medications (GenericName, BrandName, DosageStrength) VALUES (?,?,?)");
-            $s->execute([$generic_name, $brand_name, $dosage_strength]);
+            // New medication: check for duplicate (same GenericName + DosageStrength) first
+            $chk = $db->prepare("SELECT MedicationID FROM medications WHERE GenericName = ? AND DosageStrength = ? LIMIT 1");
+            $chk->execute([$generic_name, $dosage_strength]);
+            $existing = $chk->fetch();
+            if ($existing) {
+                throw new Exception("A medication named \"" . htmlspecialchars($generic_name) . "\" with dosage \"" . htmlspecialchars($dosage_strength) . "\" already exists (MED-" . str_pad($existing['MedicationID'], 3, '0', STR_PAD_LEFT) . "). Use \"Add Stock to Existing\" tab to add stock to it.");
+            }
+
+            // Insert into medications
+            $s = $db->prepare("INSERT INTO medications (GenericName, BrandName, DosageStrength, CategoryID) VALUES (?,?,?,?)");
+            $s->execute([$generic_name, $brand_name, $dosage_strength, $category_id]);
             $new_med_id = $db->lastInsertId();
 
             // Now call procedure for the medicationdetails row
@@ -70,20 +77,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_s
             $result = $s->fetch();
             $s->closeCursor();
 
-            // Set unit price and extra fields
+            // Set unit price
             if ($result && $result['Stock_Batch_ID']) {
-                $s = $db->prepare("UPDATE medicationdetails SET UnitPrice=?, Contraindications=?, Precautions=? WHERE MedDet=?");
-                $s->execute([$unit_price, $contraindications, $precautions, $result['Stock_Batch_ID']]);
+                $s = $db->prepare("UPDATE medicationdetails SET UnitPrice=? WHERE MedDet=?");
+                $s->execute([$unit_price, $result['Stock_Batch_ID']]);
             }
 
-            $success = "✓ New medication added via AddMedicationStock(). MED-" . str_pad($new_med_id, 3, '0', STR_PAD_LEFT) .
+            $success = "<i class=\"bi bi-check-circle-fill\" style=\"color:#16a34a\"></i> New medication added via AddMedicationStock(). MED-" . str_pad($new_med_id, 3, '0', STR_PAD_LEFT) .
                 " | Initial stock: " . $stock_qty;
         }
 
     } catch (PDOException $e) {
         $msg = $e->getMessage();
         if (str_contains($msg, 'Insufficient stock')) {
-            $error = "⚠ Stock check failed: Insufficient stock to complete this transaction.";
+            $error = "<i class=\"bi bi-exclamation-triangle-fill\" style=\"color:#d97706\"></i> Stock check failed: Insufficient stock to complete this transaction.";
         } else {
             $error = "Database error: " . $msg;
         }
@@ -101,21 +108,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_
         $brand = trim($_POST['brand_name'] ?? '');
         $dosage = trim($_POST['dosage_strength'] ?? '');
         $unit_price = (float)($_POST['unit_price'] ?? 0);
-        $contra = trim($_POST['contraindications'] ?? '');
-        $prec = trim($_POST['precautions'] ?? '');
         if ($id > 0 && $generic !== '') {
             $s = $db->prepare("UPDATE medications SET GenericName=?, BrandName=?, DosageStrength=? WHERE MedicationID=?");
             $s->execute([$generic, $brand, $dosage, $id]);
-            $s = $db->prepare("UPDATE medicationdetails SET UnitPrice=?, Contraindications=?, Precautions=? WHERE MedicationID=?");
-            $s->execute([$unit_price, $contra, $prec, $id]);
-            $success = "✓ Medication MED-" . str_pad($id, 3, '0', STR_PAD_LEFT) . " updated successfully.";
+            $s = $db->prepare("UPDATE medicationdetails SET UnitPrice=? WHERE MedicationID=?");
+            $s->execute([$unit_price, $id]);
+            $success = "<i class=\"bi bi-check-circle-fill\" style=\"color:#16a34a\"></i> Medication MED-" . str_pad($id, 3, '0', STR_PAD_LEFT) . " updated successfully.";
         }
     } catch (PDOException $e) {
         $error = "Database error: " . $e->getMessage();
     }
 }
 
-// ── Merge duplicate medicationdetails rows ──
+// ── Restore archived medication ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'restore_medication') {
+    try {
+        $db = getDB();
+        $id = (int)($_POST['medication_id'] ?? 0);
+        if ($id > 0) {
+            $nm = $db->prepare("SELECT GenericName, DosageStrength FROM medications WHERE MedicationID=?");
+            $nm->execute([$id]);
+            $med = $nm->fetch();
+            $medName = $med ? htmlspecialchars($med['GenericName'] . ' ' . $med['DosageStrength']) : "This medication";
+
+            $s = $db->prepare("UPDATE medications SET IsActive = 1 WHERE MedicationID=?");
+            $s->execute([$id]);
+            $success = "<i class=\"bi bi-check-circle-fill\" style=\"color:#16a34a\"></i> \"{$medName}\" has been restored to active inventory.";
+        }
+    } catch (PDOException $e) {
+        $error = "Database error: " . $e->getMessage();
+    }
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'merge_duplicates') {
     try {
         $db = getDB();
@@ -158,49 +181,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'merge
         }
 
         $success = $merged > 0
-            ? "✓ Merged duplicates for {$merged} medication(s). Stock totals have been combined."
-            : "✓ No duplicates found — inventory is already clean.";
+            ? "<i class=\"bi bi-check-circle-fill\" style=\"color:#16a34a\"></i> Merged duplicates for {$merged} medication(s). Stock totals have been combined."
+            : "<i class=\"bi bi-check-circle-fill\" style=\"color:#16a34a\"></i> No duplicates found — inventory is already clean.";
 
     } catch (PDOException $e) {
         $error = "Merge error: " . $e->getMessage();
     }
 }
 
-// ── Delete medication ──
+// ── Delete medication (hard delete) ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_medication') {
     try {
         $db = getDB();
         $id = (int)($_POST['medication_id'] ?? 0);
         if ($id > 0) {
-            // Check if medication is referenced in prescriptiondetails
-            $chk = $db->prepare("SELECT COUNT(*) FROM prescriptiondetails WHERE MedicationID=?");
-            $chk->execute([$id]);
-            $usedInRx = (int)$chk->fetchColumn();
+            $nm = $db->prepare("SELECT GenericName, DosageStrength FROM medications WHERE MedicationID=?");
+            $nm->execute([$id]);
+            $med = $nm->fetch();
+            $medName = $med ? htmlspecialchars($med['GenericName'] . ' ' . $med['DosageStrength']) : "This medication";
 
-            // Check if medication is referenced in invoices (via prescriptions)
-            $chk2 = $db->prepare("SELECT COUNT(*) FROM invoices i
-                JOIN prescriptions pr ON i.PrescriptionID = pr.PrescriptionID
-                JOIN prescriptiondetails pd ON pd.PrescriptionID = pr.PrescriptionID
-                WHERE pd.MedicationID=?");
-            $chk2->execute([$id]);
-            $usedInInvoices = (int)$chk2->fetchColumn();
+            // Delete child rows first to avoid FK constraint errors
+            $db->prepare("DELETE FROM medicationdetails WHERE MedicationID=?")->execute([$id]);
+            $db->prepare("DELETE FROM medications WHERE MedicationID=?")->execute([$id]);
 
-            if ($usedInRx > 0 || $usedInInvoices > 0) {
-                // Get medication name for friendly message
-                $nm = $db->prepare("SELECT GenericName, DosageStrength FROM medications WHERE MedicationID=?");
-                $nm->execute([$id]);
-                $med = $nm->fetch();
-                $medName = $med ? htmlspecialchars($med['GenericName'] . ' ' . $med['DosageStrength']) : "This medication";
-                $error = "⚠ Cannot delete \"{$medName}\" — it is referenced in {$usedInRx} prescription(s). 
-                          You can edit its details, but records must be preserved for audit purposes.";
-            } else {
-                // Safe to delete — no FK references
-                $s = $db->prepare("DELETE FROM medicationdetails WHERE MedicationID=?");
-                $s->execute([$id]);
-                $s = $db->prepare("DELETE FROM medications WHERE MedicationID=?");
-                $s->execute([$id]);
-                $success = "✓ Medication deleted successfully.";
-            }
+            $success = "<i class=\"bi bi-check-circle-fill\" style=\"color:#16a34a\"></i> \"{$medName}\" has been permanently deleted.";
+        }
+    } catch (PDOException $e) {
+        $error = "Database error: " . $e->getMessage();
+    }
+}
+
+// ── Archive medication (soft delete) ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'archive_medication') {
+    try {
+        $db = getDB();
+        $id = (int)($_POST['medication_id'] ?? 0);
+        if ($id > 0) {
+            $nm = $db->prepare("SELECT GenericName, DosageStrength FROM medications WHERE MedicationID=?");
+            $nm->execute([$id]);
+            $med = $nm->fetch();
+            $medName = $med ? htmlspecialchars($med['GenericName'] . ' ' . $med['DosageStrength']) : "This medication";
+
+            $s = $db->prepare("UPDATE medications SET IsActive = 0 WHERE MedicationID=?");
+            $s->execute([$id]);
+            $success = "<i class=\"bi bi-check-circle-fill\" style=\"color:#16a34a\"></i> \"{$medName}\" has been archived and removed from active inventory.";
         }
     } catch (PDOException $e) {
         $error = "Database error: " . $e->getMessage();
@@ -222,25 +246,60 @@ try {
             MIN(md.UnitPrice)                        AS UnitPrice,
             GetMedicationStockLevel(m.MedicationID)  AS LiveStock,
             SUM(md.StockAvailability)                AS BatchStock,
-            MIN(md.Contraindications)                AS Contraindications,
-            MIN(md.Precautions)                      AS Precautions,
-            MIN(md.MedDet)                           AS MedDet
+            MIN(md.MedDet)                           AS MedDet,
+            c.CategoryID,
+            c.CategoryName,
+            s.SupplierID,
+            s.SupplierName
         FROM medications m
         LEFT JOIN medicationdetails md ON md.MedicationID = m.MedicationID
-        GROUP BY m.MedicationID, m.GenericName, m.BrandName, m.DosageStrength
-        ORDER BY m.GenericName ASC
+        LEFT JOIN categories c ON c.CategoryID = m.CategoryID
+        LEFT JOIN suppliers  s ON s.SupplierID = m.SupplierID
+        WHERE m.IsActive = 1
+        GROUP BY m.MedicationID, m.GenericName, m.BrandName, m.DosageStrength,
+                 c.CategoryID, c.CategoryName, s.SupplierID, s.SupplierName
+        ORDER BY c.CategoryName ASC, m.GenericName ASC
     ");
     $s->execute();
     $medications = $s->fetchAll();
 
+    // Fetch categories for filter tabs & add form
+    $s = $db->query("SELECT CategoryID, CategoryName FROM categories ORDER BY CategoryName ASC");
+    $categories = $s->fetchAll();
+
     // Also fetch medication list for "add stock to existing" dropdown
-    $s = $db->prepare("SELECT MedicationID, GenericName, BrandName FROM medications ORDER BY GenericName ASC");
+    $s = $db->prepare("SELECT MedicationID, GenericName, BrandName FROM medications WHERE IsActive = 1 ORDER BY GenericName ASC");
     $s->execute();
     $med_list = $s->fetchAll();
 
+    // Fetch archived medications
+    $s = $db->prepare("
+        SELECT
+            m.MedicationID,
+            m.GenericName,
+            m.BrandName,
+            m.DosageStrength,
+            MIN(md.UnitPrice)       AS UnitPrice,
+            MIN(md.ExpirationDate)  AS ExpirationDate,
+            c.CategoryName,
+            s.SupplierName
+        FROM medications m
+        LEFT JOIN medicationdetails md ON md.MedicationID = m.MedicationID
+        LEFT JOIN categories c ON c.CategoryID = m.CategoryID
+        LEFT JOIN suppliers  s ON s.SupplierID = m.SupplierID
+        WHERE m.IsActive = 0
+        GROUP BY m.MedicationID, m.GenericName, m.BrandName, m.DosageStrength,
+                 c.CategoryName, s.SupplierName
+        ORDER BY m.GenericName ASC
+    ");
+    $s->execute();
+    $archived = $s->fetchAll();
+
 } catch (PDOException $e) {
     $medications = [];
-    $med_list = [];
+    $med_list    = [];
+    $categories  = [];
+    $archived    = [];
 }
 
 function stockStatus(int $qty, string $expiry): string
@@ -277,6 +336,7 @@ function fmtPad($n, $len = 3): string
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PharmaCare — Inventory</title>
     <link rel="stylesheet" href="../assets/css/main.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         .inv-result.ok {
             background: #dcfce7;
@@ -345,6 +405,125 @@ function fmtPad($n, $len = 3): string
             font-size: .78rem;
         }
     </style>
+    <style>
+        /* ══ OUTFIT FONT – single source ══ */
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
+
+        *, *::before, *::after { box-sizing: border-box; }
+        body, input, select, button, textarea { font-family: 'Outfit', sans-serif; }
+
+        /* ══ CONSISTENT BORDER RADIUS ══ */
+        :root { --br: 10px; --br-pill: 999px; --br-card: 14px; }
+
+        /* ══ SIDEBAR – no white box on active ══ */
+        .nav-item,
+        .nav-item:hover,
+        .nav-item.active { background: transparent !important; box-shadow: none !important; }
+
+        /* ══ SIDEBAR ICONS – white, sized, dimmed when inactive ══ */
+        .nav-item i.bi,
+        .brand-icon i.bi,
+        .sidebar-footer i.bi { color: #ffffff; }
+        .nav-item i.bi         { font-size: 1.6rem; display: block; line-height: 1; opacity: 0.45; transition: opacity .2s ease; }
+        .nav-item.active i.bi,
+        .nav-item:hover  i.bi  { opacity: 1 !important; }
+
+        /* ══ STAT CARD ICONS ══ */
+        .stat-icon i.bi { font-size: 1.7rem; color: #ffffff; }
+
+        /* ══ CARD TITLE ICONS ══ */
+        .card-title-icon i.bi {
+            font-size: 1.05rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* ══ ICON + TEXT GAP ══ */
+        .btn-with-icon, .card-title, .audit-section-head h3,
+        .backup-item, .backup-btn, .audit-btn-print, .audit-btn-send,
+        .admin-toolbar-left, .backup-header {
+            display: flex; align-items: center; gap: 8px;
+        }
+        i.bi + span, span + i.bi,
+        i.bi + strong, strong + i.bi { margin-left: 6px; }
+
+        /* ══ BUTTONS – consistent radius ══ */
+        .btn-add-user, .btn-add-med, .btn-primary, .btn-secondary,
+        .modal-btn-save, .modal-btn-cancel,
+        .audit-btn-print, .audit-btn-send,
+        .backup-btn, .audit-filter-btn,
+        .btn-mark-paid, .btn-mark-cancel,
+        .rx-search-btn { border-radius: var(--br) !important; }
+
+        /* ══ SEARCH BARS + DROPDOWNS – consistent radius ══ */
+        .inv-search, .inv-filter, .admin-search,
+        .rx-search-input, .modal-input,
+        .audit-filter-bar input[type="date"],
+        .sched-field select, .sched-field input,
+        .send-confirm-field input { border-radius: var(--br) !important; }
+
+        /* ══ ADMIN TOOLBAR ICON ══ */
+        i.bi.admin-toolbar-icon { font-size: 1.2rem; color: #64748b; }
+
+        /* ══ BACKUP ICONS ══ */
+        i.bi.backup-header-icon { font-size: 1.2rem; }
+        .backup-item-icon i.bi  { font-size: 1.4rem; display: flex; align-items: center; justify-content: center; }
+        .backup-btn i.bi        { font-size: 1rem; }
+
+        /* ══ USER ACTION BUTTONS ══ */
+        .ua-btn i.bi { font-size: 1rem; }
+
+        /* ══ AUDIT FOOTER BUTTONS ══ */
+        .audit-btn-print i.bi,
+        .audit-btn-send  i.bi { font-size: .95rem; }
+
+        /* ══ RESULT / FLASH BANNERS ══ */
+        .rx-result, .txn-result, .inv-result, .admin-flash {
+            display: flex; align-items: center; gap: 10px;
+            border-radius: var(--br);
+            padding: 12px 18px;
+            font-size: .875rem; font-weight: 600;
+            margin-bottom: 16px;
+        }
+        .rx-result.ok, .txn-result.ok, .inv-result.ok, .admin-flash-ok {
+            background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0;
+        }
+        .rx-result.err, .txn-result.err, .inv-result.err, .admin-flash-err {
+            background: #fee2e2; color: #dc2626; border: 1px solid #fecaca;
+        }
+        .rx-result i.bi, .txn-result i.bi,
+        .inv-result i.bi, .admin-flash i.bi { font-size: 1rem; flex-shrink: 0; }
+
+        /* ══ FLASH CLOSE ══ */
+        .flash-close {
+            margin-left: auto; background: none; border: none;
+            cursor: pointer; color: inherit; opacity: .6; font-size: .85rem;
+        }
+        .flash-close:hover { opacity: 1; }
+
+        /* ══ PAGINATION ══ */
+        .pagination {
+            display: flex; align-items: center; gap: 4px;
+            padding: 12px 18px; border-top: 1px solid #f1f5f9;
+            justify-content: flex-end; flex-wrap: wrap;
+        }
+        .pg-btn {
+            min-width: 32px; height: 32px; padding: 0 8px;
+            border: 1.5px solid #e2e8f0; border-radius: var(--br);
+            background: #fff; color: #475569;
+            font-family: 'Outfit', sans-serif; font-size: .8rem; font-weight: 600;
+            cursor: pointer; transition: all .15s;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .pg-btn:hover  { background: #f1f5f9; border-color: #cbd5e1; }
+        .pg-btn.active { background: #1e2d40; color: #fff; border-color: #1e2d40; }
+        .pg-btn:disabled { opacity: .4; cursor: not-allowed; }
+        .pg-info { font-size: .78rem; color: #94a3b8; margin: 0 6px; }
+
+        /* ══ CONSISTENT TABLE/CONTAINER HEIGHT ══ */
+        .card .table-scroll,
+        .inv-table-wrap,
+        .admin-table-wrap { min-height: 280px; }
+    </style>
 </head>
 
 <body>
@@ -356,59 +535,26 @@ function fmtPad($n, $len = 3): string
         <!-- ══ SIDEBAR ══ -->
         <aside class="sidebar" id="sidebar">
                     <div class="sidebar-brand">
-            <div class="brand-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                    <rect x="3" y="3" width="18" height="18" rx="3"/>
-                    <line x1="12" y1="7" x2="12" y2="17"/>
-                    <line x1="7"  y1="12" x2="17" y2="12"/>
-                </svg>
-            </div>
             <span class="brand-name">Pharma<br>Care<span style="font-size:0.6em;vertical-align:super;margin-left:1px;opacity:0.7;">&#9825;</span></span>
         </div>
             <nav class="sidebar-nav">
                 <a href="dashboard.php" class="nav-item" data-label="Dashboard">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/>
-                    <polyline points="9 21 9 12 15 12 15 21"/>
-                </svg>
-
+                <i class="bi bi-house-door-fill"></i>
                 </a>
                 <a href="prescriptions.php" class="nav-item" data-label="Prescriptions">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
-                    <rect x="9" y="3" width="6" height="4" rx="2"/>
-                    <path d="M9 12h6M9 16h4"/>
-                </svg>
-
+                <i class="bi bi-file-medical-fill"></i>
                 </a>
                 <a href="transactions.php" class="nav-item" data-label="Transactions">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <circle cx="12" cy="15" r="3"/>
-                    <polyline points="12 13.5 12 15 13 16"/>
-                </svg>
-
+                <i class="bi bi-receipt-cutoff"></i>
                 </a>
                 <a href="inventory.php" class="nav-item active" data-label="Inventory">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="2" y="9" width="20" height="6" rx="3"/>
-                    <line x1="12" y1="9" x2="12" y2="15"/>
-                    <circle cx="7" cy="12" r="2.5" fill="currentColor" stroke="none" opacity="0.3"/>
-                </svg>
-
+                <i class="bi bi-capsule-pill"></i>
                 </a>
                 <a href="admin.php" class="nav-item" data-label="Admin">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="8" r="3"/>
-                    <path d="M5 20a7 7 0 0 1 14 0"/>
-                    <circle cx="19" cy="19" r="2"/>
-                    <path d="M19 15v2M19 21v1M15.5 17l1.5 1M22.5 21l-1.5-1M15.5 21l1.5-1M22.5 17l-1.5 1"/>
-                </svg>
-
+                <i class="bi bi-shield-lock-fill"></i>
                 </a>
             </nav>
-            <a href="../logout.php" class="sidebar-footer" onclick="return confirm('Log out?')" title="Logout">
+            <a href="#" class="sidebar-footer" onclick="pcConfirm({title:'Log Out',body:'Are you sure you want to log out of PharmaCare?',okText:'Log Out',type:'warning',icon:'bi-box-arrow-right',onOk:()=>window.location.href='../logout.php'})" title="Logout">
                 <div class="s-avatar"><?= strtoupper(substr($_SESSION['full_name'] ?? 'P', 0, 1)) ?></div>
             </a>
         </aside>
@@ -420,10 +566,10 @@ function fmtPad($n, $len = 3): string
             <div class="page-body">
 
                 <?php if ($success): ?>
-                    <div class="inv-result ok"><?= htmlspecialchars($success) ?></div>
+                    <div class="inv-result ok"><?= $success ?></div>
                 <?php endif; ?>
                 <?php if ($error): ?>
-                    <div class="inv-result err"><?= htmlspecialchars($error) ?></div>
+                    <div class="inv-result err"><?= $error ?></div>
                 <?php endif; ?>
 
                 <!-- Inventory Card -->
@@ -436,19 +582,23 @@ function fmtPad($n, $len = 3): string
                                 Inventory &amp; Stocks
                                 <span class="live-stock-badge">Live via GetMedicationStockLevel()</span>
                             </div>
-                            <div class="stock-legend">
-                                <span class="legend-item"><span class="legend-dot ld-adequate"></span> Adequate
-                                    (&gt;300)</span>
-                                <span class="legend-item"><span class="legend-dot ld-expiring"></span> Expiring
-                                    Soon</span>
-                                <span class="legend-item"><span class="legend-dot ld-low"></span> Low (≤300)</span>
-                                <span class="legend-item"><span class="legend-dot ld-critical"></span> Critical
-                                    (≤100)</span>
-                            </div>
                         </div>
                         <div class="inventory-controls">
-                            <input class="inv-search" id="medSearch" type="text" placeholder="Search…"
-                                autocomplete="off">
+                            <!-- View Toggle -->
+                            <div style="display:flex;border:1.5px solid #e2e8f0;border-radius:10px;overflow:hidden;flex-shrink:0;">
+                                <button id="viewActive" onclick="switchView('active')"
+                                    style="padding:8px 14px;font-size:.8rem;font-weight:700;font-family:'Outfit',sans-serif;border:none;cursor:pointer;background:#1e2d40;color:#fff;display:flex;align-items:center;gap:5px;">
+                                    <i class="bi bi-capsule-pill"></i> Active
+                                </button>
+                                <button id="viewArchived" onclick="switchView('archived')"
+                                    style="padding:8px 14px;font-size:.8rem;font-weight:700;font-family:'Outfit',sans-serif;border:none;cursor:pointer;background:#fff;color:#64748b;display:flex;align-items:center;gap:5px;">
+                                    <i class="bi bi-archive"></i> Archived
+                                    <?php if (!empty($archived)): ?>
+                                    <span style="background:#ea580c;color:#fff;border-radius:20px;padding:1px 7px;font-size:.65rem;"><?= count($archived) ?></span>
+                                    <?php endif; ?>
+                                </button>
+                            </div>
+                            <input class="inv-search" id="medSearch" type="text" placeholder="Search…" autocomplete="off">
                             <select class="inv-filter" id="stockFilter"
                                 style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.84rem;color:#334155;outline:none;">
                                 <option value="">All Status</option>
@@ -457,15 +607,40 @@ function fmtPad($n, $len = 3): string
                                 <option value="expiring">Expiring</option>
                                 <option value="adequate">Adequate</option>
                             </select>
-                            <button class="btn-add-med" id="openModal">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                    <line x1="12" y1="5" x2="12" y2="19" />
-                                    <line x1="5" y1="12" x2="19" y2="12" />
-                                </svg>
+                            <button class="btn-add-med" id="openModal"><i class="bi bi-plus-circle-fill"></i>
                                 Add Medicine
                             </button>
                         </div>
                     </div>
+
+                    <!-- ══ Category Filter Tabs ══ -->
+                    <div id="activePanel">
+                    <?php if (!empty($categories)): ?>
+                    <div class="cat-tab-bar" id="catTabBar">
+                        <button class="cat-tab active" id="catAll" onclick="filterCat('all',this)">
+                            <i class="bi bi-grid-fill"></i> All
+                        </button>
+                        <?php
+                        $tabMeta = [
+                            'prescription' => ['cls'=>'rx',   'icon'=>'bi-prescription2',  'color'=>'#6d28d9'],
+                            'vitamin'      => ['cls'=>'vit',  'icon'=>'bi-capsule',         'color'=>'#15803d'],
+                            'resp'         => ['cls'=>'resp', 'icon'=>'bi-lungs-fill',       'color'=>'#1d4ed8'],
+                        ];
+                        foreach ($categories as $cat):
+                            $lc  = strtolower($cat['CategoryName']);
+                            $key = str_contains($lc,'prescription') ? 'prescription'
+                                 : (str_contains($lc,'vitamin')      ? 'vitamin' : 'resp');
+                            $m   = $tabMeta[$key];
+                        ?>
+                        <button class="cat-tab <?= $m['cls'] ?>"
+                                data-catid="<?= $cat['CategoryID'] ?>"
+                                onclick="filterCat(<?= $cat['CategoryID'] ?>,this)">
+                            <i class="bi <?= $m['icon'] ?>"></i>
+                            <?= htmlspecialchars($cat['CategoryName']) ?>
+                        </button>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
 
                     <!-- Table -->
 
@@ -477,6 +652,7 @@ function fmtPad($n, $len = 3): string
                                     <th>Generic Name</th>
                                     <th>Brand</th>
                                     <th>Dosage</th>
+                                    <th>Category</th>
                                     <th>Expiry</th>
                                     <th>Unit Price</th>
                                     <th>Total Stock</th>
@@ -487,22 +663,28 @@ function fmtPad($n, $len = 3): string
                             <tbody id="medBody">
                                 <?php if (empty($medications)): ?>
                                     <tr>
-                                        <td colspan="9" class="med-empty">No medications found.</td>
+                                        <td colspan="10" class="med-empty">No medications found.</td>
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($medications as $m):
                                         $liveStock  = (int) $m['LiveStock'];
-                                        $hasDetails = $m['MedDet'] !== null; // false if no medicationdetails row
+                                        $hasDetails = $m['MedDet'] !== null;
                                         $exp        = $m['ExpirationDate'] ?? null;
                                         $status     = $hasDetails ? stockStatus($liveStock, $exp ?? date('Y-m-d', strtotime('+2 years'))) : 'critical';
                                         $sClass     = stockClass($status);
-                                        ?>
-                                        <tr data-search="<?= strtolower('MED-' . fmtPad($m['MedicationID']) . ' ' . $m['GenericName'] . ' ' . $m['BrandName']) ?>"
-                                            data-status="<?= $status ?>">
+                                        // Category
+                                        $catName = $m['CategoryName'] ?? '';
+                                    ?>
+                                        <tr data-search="<?= strtolower('MED-' . fmtPad($m['MedicationID']) . ' ' . $m['GenericName'] . ' ' . $m['BrandName'] . ' ' . $catName) ?>"
+                                            data-status="<?= $status ?>"
+                                            data-catid="<?= (int)($m['CategoryID'] ?? 0) ?>">
                                             <td class="med-col-id">MED-<?= fmtPad($m['MedicationID']) ?></td>
                                             <td class="med-col-name"><?= htmlspecialchars($m['GenericName']) ?></td>
                                             <td class="med-col-brand"><?= htmlspecialchars($m['BrandName']) ?></td>
                                             <td class="med-col-dose"><?= htmlspecialchars($m['DosageStrength']) ?></td>
+                                            <td style="font-size:.78rem;color:#475569;">
+                                                <?= $catName ? htmlspecialchars($catName) : '<span style="color:#94a3b8;">—</span>' ?>
+                                            </td>
                                             <td class="med-col-expiry" style="<?= !$hasDetails ? 'color:#94a3b8;font-style:italic;' : '' ?>">
                                                 <?= $hasDetails ? htmlspecialchars($exp) : '—' ?>
                                             </td>
@@ -529,20 +711,16 @@ function fmtPad($n, $len = 3): string
                                                     <?php else: ?>
                                                         <button onclick="openEditModal(<?= $m['MedicationID'] ?>, <?= htmlspecialchars(json_encode($m), ENT_QUOTES) ?>)" title="Edit"
                                                             style="width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#334155;cursor:pointer;padding:0;">
-                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                                                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                                                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                                                            </svg>
+                                                            <i class="bi bi-pencil-fill"></i>
                                                         </button>
                                                     <?php endif; ?>
-                                                    <button onclick="confirmDelete(<?= $m['MedicationID'] ?>, '<?= htmlspecialchars($m['GenericName']) ?>')" title="Delete"
-                                                        style="width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1.5px solid #fecaca;background:#fff5f5;color:#ef4444;cursor:pointer;padding:0;">
-                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                                                            <polyline points="3 6 5 6 21 6"/>
-                                                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                                                            <path d="M10 11v6M14 11v6"/>
-                                                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                                                        </svg>
+                                                    <button onclick="confirmArchive(<?= $m['MedicationID'] ?>, '<?= htmlspecialchars($m['GenericName'], ENT_QUOTES) ?>')" title="Archive"
+                                                        style="width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1.5px solid #fed7aa;background:#fff7ed;color:#ea580c;cursor:pointer;padding:0;">
+                                                        <i class="bi bi-archive-fill"></i>
+                                                    </button>
+                                                    <button onclick="confirmDelete(<?= $m['MedicationID'] ?>, '<?= htmlspecialchars($m['GenericName'], ENT_QUOTES) ?>')" title="Delete permanently"
+                                                        style="width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1.5px solid #fecaca;background:#fff0f0;color:#dc2626;cursor:pointer;padding:0;">
+                                                        <i class="bi bi-trash-fill"></i>
                                                     </button>
                                                 </div>
                                             </td>
@@ -552,6 +730,70 @@ function fmtPad($n, $len = 3): string
                             </tbody>
                         </table>
                     </div>
+
+                    </div><!-- /activePanel -->
+
+                    <!-- ══ Archived Medicines Panel ══ -->
+                    <div id="archivedPanel" style="display:none;">
+
+                        <!-- Archived subheader -->
+                        <div style="padding:10px 16px 8px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f1f5f9;">
+                            <i class="bi bi-archive-fill" style="color:#ea580c;font-size:.95rem;"></i>
+                            <span style="font-size:.88rem;font-weight:700;color:#0f172a;">Archived Medicines</span>
+                            <span style="font-size:.75rem;font-weight:600;color:#94a3b8;"><?= count($archived) ?> record(s)</span>
+                            <span style="font-size:.75rem;color:#94a3b8;margin-left:4px;">— Restore to make them available again.</span>
+                        </div>
+
+                        <div class="med-table-wrap">
+                            <table class="med-table" id="archivedTable">
+                                <thead>
+                                    <tr>
+                                        <th>Med ID</th>
+                                        <th>Generic Name</th>
+                                        <th>Brand</th>
+                                        <th>Dosage</th>
+                                        <th>Category</th>
+                                        <th>Unit Price</th>
+                                        <th>Expiry</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if (empty($archived)): ?>
+                                        <tr><td colspan="8" class="med-empty">
+                                            <i class="bi bi-archive" style="font-size:1.5rem;color:#cbd5e1;display:block;margin-bottom:8px;"></i>
+                                            No archived medicines yet.
+                                        </td></tr>
+                                    <?php else: ?>
+                                        <?php foreach ($archived as $a): ?>
+                                        <tr style="opacity:.8;">
+                                            <td class="med-col-id">MED-<?= fmtPad($a['MedicationID']) ?></td>
+                                            <td class="med-col-name" style="color:#94a3b8;"><?= htmlspecialchars($a['GenericName']) ?></td>
+                                            <td class="med-col-brand" style="color:#94a3b8;"><?= htmlspecialchars($a['BrandName']) ?></td>
+                                            <td class="med-col-dose" style="color:#94a3b8;"><?= htmlspecialchars($a['DosageStrength']) ?></td>
+                                            <td style="font-size:.78rem;color:#94a3b8;">
+                                                <?= !empty($a['CategoryName']) ? htmlspecialchars($a['CategoryName']) : '—' ?>
+                                            </td>
+                                            <td style="color:#94a3b8;"><?= $a['UnitPrice'] ? '&#8369;' . number_format((float)$a['UnitPrice'], 2) : '—' ?></td>
+                                            <td style="color:#94a3b8;"><?= htmlspecialchars($a['ExpirationDate'] ?? '—') ?></td>
+                                            <td>
+                                                <form method="POST" action="?view=archived" style="display:inline;">
+                                                    <input type="hidden" name="action" value="restore_medication">
+                                                    <input type="hidden" name="medication_id" value="<?= $a['MedicationID'] ?>">
+                                                    <button type="submit" title="Restore to active inventory"
+                                                        style="display:inline-flex;align-items:center;gap:5px;padding:0 12px;height:32px;border-radius:8px;border:1.5px solid #bbf7d0;background:#dcfce7;color:#15803d;cursor:pointer;font-size:.75rem;font-weight:700;font-family:'Outfit',sans-serif;">
+                                                        <i class="bi bi-arrow-counterclockwise"></i> Restore
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+
+                    </div><!-- /archivedPanel -->
 
                 </div><!-- /inventory-card -->
 
@@ -566,12 +808,7 @@ function fmtPad($n, $len = 3): string
             <!-- Header -->
             <div style="display:flex;align-items:center;justify-content:space-between;padding:22px 28px 18px;border-bottom:1.5px solid #f1f5f9;">
                 <div style="display:flex;align-items:center;gap:12px;">
-                    <div style="width:38px;height:38px;background:#e0e7ff;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.2">
-                            <rect x="3" y="3" width="18" height="18" rx="3"/>
-                            <line x1="12" y1="7" x2="12" y2="17"/>
-                            <line x1="7" y1="12" x2="17" y2="12"/>
-                        </svg>
+                    <div style="width:38px;height:38px;background:#e0e7ff;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="bi bi-info-circle-fill" style="font-size:1.1rem;color:#6366f1"></i>
                     </div>
                     <div>
                         <div style="font-size:1rem;font-weight:700;color:#0f172a;line-height:1.2;">Add Medicine Stock</div>
@@ -614,16 +851,15 @@ function fmtPad($n, $len = 3): string
                                 <input type="text" name="dosage_strength" placeholder="e.g. 500mg"
                                     style="padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:.9rem;background:#f8fafc;outline:none;width:100%;box-sizing:border-box;">
                             </div>
-                            <div></div>
-                            <div style="display:flex;flex-direction:column;gap:6px;grid-column:1/-1;">
-                                <label style="font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#64748b;">Contraindications</label>
-                                <input type="text" name="contraindications" placeholder="e.g. Severe liver disease"
+                            <div style="display:flex;flex-direction:column;gap:6px;">
+                                <label style="font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#64748b;">Category</label>
+                                <select name="category_id"
                                     style="padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:.9rem;background:#f8fafc;outline:none;width:100%;box-sizing:border-box;">
-                            </div>
-                            <div style="display:flex;flex-direction:column;gap:6px;grid-column:1/-1;">
-                                <label style="font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#64748b;">Precautions</label>
-                                <input type="text" name="precautions" placeholder="e.g. Do not exceed 4g/day"
-                                    style="padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:.9rem;background:#f8fafc;outline:none;width:100%;box-sizing:border-box;">
+                                    <option value="">— Select category —</option>
+                                    <?php foreach ($categories as $cat): ?>
+                                    <option value="<?= $cat['CategoryID'] ?>"><?= htmlspecialchars($cat['CategoryName']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -675,11 +911,7 @@ function fmtPad($n, $len = 3): string
 
                     <!-- Procedure note -->
                     <div style="display:flex;align-items:flex-start;gap:10px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:12px 16px;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" style="flex-shrink:0;margin-top:1px;">
-                            <circle cx="12" cy="12" r="10"/>
-                            <line x1="12" y1="8" x2="12" y2="12"/>
-                            <line x1="12" y1="16" x2="12.01" y2="16"/>
-                        </svg>
+                        <i class="bi bi-info-circle-fill" style="font-size:1rem;color:#3b82f6;flex-shrink:0;margin-top:1px;"></i>
                         <span style="font-size:.78rem;color:#1d4ed8;line-height:1.5;">Calls <strong>AddMedicationStock(MedicationID, Manufacturer, ExpirationDate, Quantity)</strong> procedure</span>
                     </div>
 
@@ -696,6 +928,33 @@ function fmtPad($n, $len = 3): string
         </div>
     </div>
 
+    <!-- ══ Delete Confirm Modal ══ -->
+    <div class="modal-overlay" id="deleteMedModal">
+        <div style="background:#fff;border-radius:16px;padding:0;width:min(420px,90vw);overflow:hidden;">
+            <div style="padding:28px 28px 20px;text-align:center;">
+                <div style="width:52px;height:52px;background:#fff0f0;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+                    <i class="bi bi-trash-fill" style="font-size:1.4rem;color:#dc2626"></i>
+                </div>
+                <div style="font-size:1.05rem;font-weight:700;color:#0f172a;margin-bottom:8px;">Delete Medication?</div>
+                <div style="font-size:.88rem;color:#64748b;line-height:1.5;">
+                    <strong id="deleteMedName"></strong> will be <span style="color:#dc2626;font-weight:700;">permanently deleted</span> along with all its stock records. This action <strong>cannot be undone</strong>.
+                </div>
+            </div>
+            <form method="POST">
+                <input type="hidden" name="action" value="delete_medication">
+                <input type="hidden" name="medication_id" id="deleteMedId">
+                <div style="display:flex;gap:10px;padding:0 28px 24px;">
+                    <button type="button" onclick="closeDeleteModal()"
+                        style="flex:1;padding:11px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;color:#64748b;font-size:.9rem;font-weight:600;cursor:pointer;">Cancel</button>
+                    <button type="submit"
+                        style="flex:1;padding:11px;border-radius:10px;border:none;background:#dc2626;color:#fff;font-size:.9rem;font-weight:700;cursor:pointer;">
+                        <i class="bi bi-trash-fill" style="margin-right:5px;"></i>Yes, Delete
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="toast-tray" id="toastTray"></div>
 
     <!-- ══ Edit Medicine Modal ══ -->
@@ -703,11 +962,7 @@ function fmtPad($n, $len = 3): string
         <div class="modal-box" style="width:min(600px,95vw);max-height:90vh;overflow-y:auto;border-radius:16px;padding:0;">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:22px 28px 18px;border-bottom:1.5px solid #f1f5f9;">
                 <div style="display:flex;align-items:center;gap:12px;">
-                    <div style="width:38px;height:38px;background:#fef3c7;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.2">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                        </svg>
+                    <div style="width:38px;height:38px;background:#fef3c7;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="bi bi-exclamation-triangle-fill" style="font-size:1.1rem;color:#d97706"></i>
                     </div>
                     <div>
                         <div style="font-size:1rem;font-weight:700;color:#0f172a;line-height:1.2;">Edit Medicine</div>
@@ -741,16 +996,6 @@ function fmtPad($n, $len = 3): string
                             <input type="number" step="0.01" min="0" name="unit_price" id="editUnitPrice"
                                 style="padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:.9rem;background:#f8fafc;outline:none;width:100%;box-sizing:border-box;">
                         </div>
-                        <div style="display:flex;flex-direction:column;gap:6px;grid-column:1/-1;">
-                            <label style="font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#64748b;">Contraindications</label>
-                            <input type="text" name="contraindications" id="editContra"
-                                style="padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:.9rem;background:#f8fafc;outline:none;width:100%;box-sizing:border-box;">
-                        </div>
-                        <div style="display:flex;flex-direction:column;gap:6px;grid-column:1/-1;">
-                            <label style="font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#64748b;">Precautions</label>
-                            <input type="text" name="precautions" id="editPrecautions"
-                                style="padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:.9rem;background:#f8fafc;outline:none;width:100%;box-sizing:border-box;">
-                        </div>
                     </div>
                 </div>
                 <div style="display:flex;justify-content:flex-end;gap:10px;padding:16px 28px;border-top:1.5px solid #f1f5f9;">
@@ -763,29 +1008,28 @@ function fmtPad($n, $len = 3): string
         </div>
     </div>
 
-    <!-- ══ Delete Confirm Modal ══ -->
-    <div class="modal-overlay" id="deleteMedModal">
+    <!-- ══ Archive Confirm Modal ══ -->
+    <div class="modal-overlay" id="archiveMedModal">
         <div style="background:#fff;border-radius:16px;padding:0;width:min(420px,90vw);overflow:hidden;">
             <div style="padding:28px 28px 20px;text-align:center;">
-                <div style="width:52px;height:52px;background:#fee2e2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.2">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                        <path d="M10 11v6M14 11v6"/>
-                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                    </svg>
+                <div style="width:52px;height:52px;background:#fff7ed;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+                    <i class="bi bi-archive-fill" style="font-size:1.4rem;color:#ea580c"></i>
                 </div>
-                <div style="font-size:1.05rem;font-weight:700;color:#0f172a;margin-bottom:8px;">Delete Medication?</div>
-                <div style="font-size:.88rem;color:#64748b;line-height:1.5;">You are about to delete <strong id="deleteMedName"></strong>. This action cannot be undone.</div>
+                <div style="font-size:1.05rem;font-weight:700;color:#0f172a;margin-bottom:8px;">Archive Medication?</div>
+                <div style="font-size:.88rem;color:#64748b;line-height:1.5;">
+                    <strong id="archiveMedName"></strong> will be removed from the active inventory but all records will be preserved. You can restore it later if needed.
+                </div>
             </div>
             <form method="POST">
-                <input type="hidden" name="action" value="delete_medication">
-                <input type="hidden" name="medication_id" id="deleteMedId">
+                <input type="hidden" name="action" value="archive_medication">
+                <input type="hidden" name="medication_id" id="archiveMedId">
                 <div style="display:flex;gap:10px;padding:0 28px 24px;">
-                    <button type="button" onclick="closeDeleteModal()"
+                    <button type="button" onclick="closeArchiveModal()"
                         style="flex:1;padding:11px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;color:#64748b;font-size:.9rem;font-weight:600;cursor:pointer;">Cancel</button>
                     <button type="submit"
-                        style="flex:1;padding:11px;border-radius:10px;border:none;background:#ef4444;color:#fff;font-size:.9rem;font-weight:700;cursor:pointer;">Yes, Delete</button>
+                        style="flex:1;padding:11px;border-radius:10px;border:none;background:#ea580c;color:#fff;font-size:.9rem;font-weight:700;cursor:pointer;">
+                        <i class="bi bi-archive-fill" style="margin-right:5px;"></i>Yes, Archive
+                    </button>
                 </div>
             </form>
         </div>
@@ -793,6 +1037,29 @@ function fmtPad($n, $len = 3): string
 
     <script>
         'use strict';
+
+        /* ── Active / Archived view toggle ── */
+        function switchView(view) {
+            const activePanel   = document.getElementById('activePanel');
+            const archivedPanel = document.getElementById('archivedPanel');
+            const btnActive     = document.getElementById('viewActive');
+            const btnArchived   = document.getElementById('viewArchived');
+            const catTabBar     = document.getElementById('catTabBar');
+
+            if (view === 'archived') {
+                activePanel.style.display   = 'none';
+                archivedPanel.style.display = 'block';
+                if (catTabBar) catTabBar.style.display = 'none';
+                btnActive.style.cssText   = 'padding:8px 14px;font-size:.8rem;font-weight:700;font-family:\'Outfit\',sans-serif;border:none;cursor:pointer;background:#fff;color:#64748b;display:flex;align-items:center;gap:5px;';
+                btnArchived.style.cssText = 'padding:8px 14px;font-size:.8rem;font-weight:700;font-family:\'Outfit\',sans-serif;border:none;cursor:pointer;background:#ea580c;color:#fff;display:flex;align-items:center;gap:5px;';
+            } else {
+                activePanel.style.display   = 'block';
+                archivedPanel.style.display = 'none';
+                if (catTabBar) catTabBar.style.display = 'flex';
+                btnActive.style.cssText   = 'padding:8px 14px;font-size:.8rem;font-weight:700;font-family:\'Outfit\',sans-serif;border:none;cursor:pointer;background:#1e2d40;color:#fff;display:flex;align-items:center;gap:5px;';
+                btnArchived.style.cssText = 'padding:8px 14px;font-size:.8rem;font-weight:700;font-family:\'Outfit\',sans-serif;border:none;cursor:pointer;background:#fff;color:#64748b;display:flex;align-items:center;gap:5px;';
+            }
+        }
 
         /* ── Tab switching (Add Stock modal) ── */
         function switchTab(tab) {
@@ -819,19 +1086,29 @@ function fmtPad($n, $len = 3): string
         }
 
         /* ── Search & filter ── */
-        const medSearch = document.getElementById('medSearch');
-        const stockFilter = document.getElementById('stockFilter');
-        const medRows = document.querySelectorAll('#medBody tr[data-status]');
+        const medSearch    = document.getElementById('medSearch');
+        const stockFilter  = document.getElementById('stockFilter');
+        const medRows      = document.querySelectorAll('#medBody tr[data-status]');
+        let activeCatId    = 'all';
+
+        function filterCat(catId, btn) {
+            activeCatId = catId;
+            document.querySelectorAll('.cat-tab').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            applyFilters();
+        }
+
         function applyFilters() {
-            const q = medSearch.value.toLowerCase().trim();
+            const q      = medSearch.value.toLowerCase().trim();
             const status = stockFilter.value;
             medRows.forEach(row => {
-                const matchQ = !q || row.dataset.search.includes(q);
-                const matchS = !status || row.dataset.status === status;
-                row.style.display = matchQ && matchS ? '' : 'none';
+                const matchQ   = !q      || row.dataset.search.includes(q);
+                const matchS   = !status || row.dataset.status === status;
+                const matchCat = activeCatId === 'all' || String(row.dataset.catid) === String(activeCatId);
+                row.style.display = (matchQ && matchS && matchCat) ? '' : 'none';
             });
         }
-        medSearch.addEventListener('input', applyFilters);
+        medSearch.addEventListener('input',  applyFilters);
         stockFilter.addEventListener('change', applyFilters);
 
         /* ── Add Stock Modal ── */
@@ -864,8 +1141,6 @@ function fmtPad($n, $len = 3): string
             document.getElementById('editBrandName').value = data.BrandName || '';
             document.getElementById('editDosage').value = data.DosageStrength || '';
             document.getElementById('editUnitPrice').value = data.UnitPrice || '';
-            document.getElementById('editContra').value = data.Contraindications || '';
-            document.getElementById('editPrecautions').value = data.Precautions || '';
             document.getElementById('editMedModal').classList.add('show');
         }
         function closeEditModal() {
@@ -873,6 +1148,19 @@ function fmtPad($n, $len = 3): string
         }
         document.getElementById('editMedModal').addEventListener('click', e => {
             if (e.target === document.getElementById('editMedModal')) closeEditModal();
+        });
+
+        /* ── Archive Modal ── */
+        function confirmArchive(id, name) {
+            document.getElementById('archiveMedId').value = id;
+            document.getElementById('archiveMedName').textContent = name;
+            document.getElementById('archiveMedModal').classList.add('show');
+        }
+        function closeArchiveModal() {
+            document.getElementById('archiveMedModal').classList.remove('show');
+        }
+        document.getElementById('archiveMedModal').addEventListener('click', e => {
+            if (e.target === document.getElementById('archiveMedModal')) closeArchiveModal();
         });
 
         /* ── Delete Modal ── */
@@ -888,7 +1176,9 @@ function fmtPad($n, $len = 3): string
             if (e.target === document.getElementById('deleteMedModal')) closeDeleteModal();
         });
 
-        /* ── Sidebar ── */
+        /* ── Auto-switch view if needed ── */
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('view') === 'archived') switchView('archived');
         const sidebar = document.getElementById('sidebar');
         const sidebarOverlay = document.getElementById('sidebarOverlay');
         const sidebarToggle = document.getElementById('sidebarToggle');

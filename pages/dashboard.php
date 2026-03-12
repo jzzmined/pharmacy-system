@@ -89,6 +89,126 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PharmaCare — Dashboard</title>
     <link rel="stylesheet" href="../assets/css/main.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        /* ══ OUTFIT FONT – single source ══ */
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
+
+        *, *::before, *::after { box-sizing: border-box; }
+        body, input, select, button, textarea { font-family: 'Outfit', sans-serif; }
+
+        /* ══ CONSISTENT BORDER RADIUS ══ */
+        :root { --br: 10px; --br-pill: 999px; --br-card: 14px; }
+
+        /* ══ SIDEBAR – no white box on active ══ */
+        .nav-item,
+        .nav-item:hover,
+        .nav-item.active { background: transparent !important; box-shadow: none !important; }
+
+        /* ══ SIDEBAR ICONS – white, sized, dimmed when inactive ══ */
+        .nav-item i.bi,
+        .brand-icon i.bi,
+        .sidebar-footer i.bi { color: #ffffff; }
+        .nav-item i.bi         { font-size: 1.6rem; display: block; line-height: 1; opacity: 0.45; transition: opacity .2s ease; }
+        .nav-item.active i.bi,
+        .nav-item:hover  i.bi  { opacity: 1 !important; }
+
+        /* ══ STAT CARD ICONS ══ */
+        .stat-icon i.bi { font-size: 1.7rem; color: #ffffff; }
+
+        /* ══ CARD TITLE ICONS ══ */
+        .card-title-icon i.bi {
+            font-size: 1.05rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* ══ ICON + TEXT GAP ══ */
+        .btn-with-icon, .card-title, .audit-section-head h3,
+        .backup-item, .backup-btn, .audit-btn-print, .audit-btn-send,
+        .admin-toolbar-left, .backup-header {
+            display: flex; align-items: center; gap: 8px;
+        }
+        i.bi + span, span + i.bi,
+        i.bi + strong, strong + i.bi { margin-left: 6px; }
+
+        /* ══ BUTTONS – consistent radius ══ */
+        .btn-add-user, .btn-add-med, .btn-primary, .btn-secondary,
+        .modal-btn-save, .modal-btn-cancel,
+        .audit-btn-print, .audit-btn-send,
+        .backup-btn, .audit-filter-btn,
+        .btn-mark-paid, .btn-mark-cancel,
+        .rx-search-btn { border-radius: var(--br) !important; }
+
+        /* ══ SEARCH BARS + DROPDOWNS – consistent radius ══ */
+        .inv-search, .inv-filter, .admin-search,
+        .rx-search-input, .modal-input,
+        .audit-filter-bar input[type="date"],
+        .sched-field select, .sched-field input,
+        .send-confirm-field input { border-radius: var(--br) !important; }
+
+        /* ══ ADMIN TOOLBAR ICON ══ */
+        i.bi.admin-toolbar-icon { font-size: 1.2rem; color: #64748b; }
+
+        /* ══ BACKUP ICONS ══ */
+        i.bi.backup-header-icon { font-size: 1.2rem; }
+        .backup-item-icon i.bi  { font-size: 1.4rem; display: flex; align-items: center; justify-content: center; }
+        .backup-btn i.bi        { font-size: 1rem; }
+
+        /* ══ USER ACTION BUTTONS ══ */
+        .ua-btn i.bi { font-size: 1rem; }
+
+        /* ══ AUDIT FOOTER BUTTONS ══ */
+        .audit-btn-print i.bi,
+        .audit-btn-send  i.bi { font-size: .95rem; }
+
+        /* ══ RESULT / FLASH BANNERS ══ */
+        .rx-result, .txn-result, .inv-result, .admin-flash {
+            display: flex; align-items: center; gap: 10px;
+            border-radius: var(--br);
+            padding: 12px 18px;
+            font-size: .875rem; font-weight: 600;
+            margin-bottom: 16px;
+        }
+        .rx-result.ok, .txn-result.ok, .inv-result.ok, .admin-flash-ok {
+            background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0;
+        }
+        .rx-result.err, .txn-result.err, .inv-result.err, .admin-flash-err {
+            background: #fee2e2; color: #dc2626; border: 1px solid #fecaca;
+        }
+        .rx-result i.bi, .txn-result i.bi,
+        .inv-result i.bi, .admin-flash i.bi { font-size: 1rem; flex-shrink: 0; }
+
+        /* ══ FLASH CLOSE ══ */
+        .flash-close {
+            margin-left: auto; background: none; border: none;
+            cursor: pointer; color: inherit; opacity: .6; font-size: .85rem;
+        }
+        .flash-close:hover { opacity: 1; }
+
+        /* ══ PAGINATION ══ */
+        .pagination {
+            display: flex; align-items: center; gap: 4px;
+            padding: 12px 18px; border-top: 1px solid #f1f5f9;
+            justify-content: flex-end; flex-wrap: wrap;
+        }
+        .pg-btn {
+            min-width: 32px; height: 32px; padding: 0 8px;
+            border: 1.5px solid #e2e8f0; border-radius: var(--br);
+            background: #fff; color: #475569;
+            font-family: 'Outfit', sans-serif; font-size: .8rem; font-weight: 600;
+            cursor: pointer; transition: all .15s;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .pg-btn:hover  { background: #f1f5f9; border-color: #cbd5e1; }
+        .pg-btn.active { background: #1e2d40; color: #fff; border-color: #1e2d40; }
+        .pg-btn:disabled { opacity: .4; cursor: not-allowed; }
+        .pg-info { font-size: .78rem; color: #94a3b8; margin: 0 6px; }
+
+        /* ══ CONSISTENT TABLE/CONTAINER HEIGHT ══ */
+        .card .table-scroll,
+        .inv-table-wrap,
+        .admin-table-wrap { min-height: 280px; }
+    </style>
 </head>
 <body>
 
@@ -100,62 +220,34 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
     <aside class="sidebar" id="sidebar">
 
                 <div class="sidebar-brand">
-            <div class="brand-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                    <rect x="3" y="3" width="18" height="18" rx="3"/>
-                    <line x1="12" y1="7" x2="12" y2="17"/>
-                    <line x1="7"  y1="12" x2="17" y2="12"/>
-                </svg>
-            </div>
             <span class="brand-name">Pharma<br>Care<span style="font-size:0.6em;vertical-align:super;margin-left:1px;opacity:0.7;">&#9825;</span></span>
         </div>
 
         <nav class="sidebar-nav">
 
             <a href="dashboard.php" class="nav-item active" data-label="Dashboard">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/>
-                    <polyline points="9 21 9 12 15 12 15 21"/>
-                </svg>
+                <i class="bi bi-house-door-fill"></i>
             </a>
 
             <a href="prescriptions.php" class="nav-item" data-label="Prescriptions">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
-                    <rect x="9" y="3" width="6" height="4" rx="2"/>
-                    <path d="M9 12h6M9 16h4"/>
-                </svg>
+                <i class="bi bi-file-medical-fill"></i>
             </a>
 
             <a href="transactions.php" class="nav-item" data-label="Transactions">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <circle cx="12" cy="15" r="3"/>
-                    <polyline points="12 13.5 12 15 13 16"/>
-                </svg>
+                <i class="bi bi-receipt-cutoff"></i>
             </a>
 
             <a href="inventory.php" class="nav-item" data-label="Medications">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="2" y="9" width="20" height="6" rx="3"/>
-                    <line x1="12" y1="9" x2="12" y2="15"/>
-                    <circle cx="7" cy="12" r="2.5" fill="currentColor" stroke="none" opacity="0.3"/>
-                </svg>
+                <i class="bi bi-capsule-pill"></i>
             </a>
 
             <a href="admin.php" class="nav-item" data-label="Admin">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="8" r="3"/>
-                    <path d="M5 20a7 7 0 0 1 14 0"/>
-                    <circle cx="19" cy="19" r="2"/>
-                    <path d="M19 15v2M19 21v1M15.5 17l1.5 1M22.5 21l-1.5-1M15.5 21l1.5-1M22.5 17l-1.5 1"/>
-                </svg>
+                <i class="bi bi-shield-lock-fill"></i>
             </a>
 
         </nav>
 
-        <a href="../logout.php" class="sidebar-footer" onclick="return confirm('Log out?')" title="Logout">
+        <a href="#" class="sidebar-footer" onclick="pcConfirm({title:'Log Out',body:'Are you sure you want to log out of PharmaCare?',okText:'Log Out',type:'warning',icon:'bi-box-arrow-right',onOk:()=>window.location.href='../logout.php'})" title="Logout">
             <div class="s-avatar"><?= strtoupper(substr($_SESSION['full_name'] ?? 'P', 0, 1)) ?></div>
         </a>
 
@@ -172,13 +264,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
             <div class="stats-row">
 
                 <div class="stat-card">
-                    <div class="stat-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="9" cy="7" r="3"/>
-                            <path d="M2 20a7 7 0 0 1 14 0"/>
-                            <circle cx="17" cy="8" r="2.5"/>
-                            <path d="M22 20a5 5 0 0 0-5-5"/>
-                        </svg>
+                    <div class="stat-icon"><i class="bi bi-people-fill"></i>
                     </div>
                     <div class="stat-body">
                         <div class="stat-value" id="statPatients"><?= $patients ?></div>
@@ -187,12 +273,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                 </div>
 
                 <div class="stat-card">
-                    <div class="stat-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
-                            <rect x="9" y="3" width="6" height="4" rx="2"/>
-                            <text x="8" y="16" font-size="6" stroke="none" fill="currentColor" font-weight="bold">Rx</text>
-                        </svg>
+                    <div class="stat-icon"><i class="bi bi-file-medical-fill"></i>
                     </div>
                     <div class="stat-body">
                         <div class="stat-value" id="statPrescriptions"><?= $prescriptions ?></div>
@@ -201,12 +282,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                 </div>
 
                 <div class="stat-card">
-                    <div class="stat-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                            <polyline points="14 2 14 8 20 8"/>
-                            <circle cx="12" cy="15" r="3"/>
-                            <polyline points="12 13.5 12 15 13 16"/>
+                    <div class="stat-icon"><i class="bi bi-receipt-cutoff"></i>
                         </svg>
                     </div>
                     <div class="stat-body">
@@ -216,11 +292,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                 </div>
 
                 <div class="stat-card">
-                    <div class="stat-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="2" y="4" width="20" height="16" rx="2"/>
-                            <line x1="12" y1="9" x2="12" y2="15"/>
-                            <path d="M15 9.5H10.5a1.5 1.5 0 0 0 0 3h3a1.5 1.5 0 0 1 0 3H9"/>
+                    <div class="stat-icon"><i class="bi bi-cash-coin"></i>
                         </svg>
                     </div>
                     <div class="stat-body">
@@ -238,17 +310,10 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                 <div class="card">
                     <div class="card-head">
                         <div class="card-title">
-                            <div class="card-title-icon cti-teal">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
-                                    <rect x="9" y="3" width="6" height="4" rx="2"/>
-                                    <line x1="9" y1="12" x2="15" y2="12"/>
-                                    <line x1="9" y1="16" x2="13" y2="16"/>
-                                </svg>
-                            </div>
+                            <div class="card-title-icon cti-teal"><i class="bi bi-receipt-cutoff"></i>                            </div>
                             Recent Transactions
                         </div>
-                        <a href="transactions.php" style="font-size:.75rem;color:#6366f1;font-weight:600;text-decoration:none;">View All →</a>
+                        <a href="transactions.php" style="font-size:.75rem;color:#6366f1;font-weight:600;text-decoration:none;">View All <i class="bi bi-arrow-right"></i></a>
                     </div>
                     <div class="table-scroll" style="max-height:420px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#cbd5e1 #f1f5f9;">
                         <table style="width:100%;">
@@ -281,19 +346,14 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                             </tbody>
                         </table>
                     </div>
+                    <div class="pagination" id="pg-txn"></div>
                 </div>
 
                 <!-- Low Stock Alerts -->
                 <div class="card">
                     <div class="card-head">
                         <div class="card-title">
-                            <div class="card-title-icon cti-amber">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                                    <line x1="12" y1="9" x2="12" y2="13"/>
-                                    <line x1="12" y1="17" x2="12.01" y2="17"/>
-                                </svg>
-                            </div>
+                            <div class="card-title-icon cti-amber"><i class="bi bi-exclamation-triangle-fill"></i>                            </div>
                             Low Stock Alerts
                         </div>
                     </div>
@@ -307,7 +367,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                             </thead>
                             <tbody id="stockBody">
                             <?php if(empty($lowItems)): ?>
-                                <tr><td colspan="2" class="empty-state">All medications well-stocked 🎉</td></tr>
+                                <tr><td colspan="2" class="empty-state">All medications well-stocked</td></tr>
                             <?php else: foreach($lowItems as $item):
                                 $qty = (int)$item['LiveStock'];
                                 $isCritical = $qty <= 100;
@@ -326,19 +386,14 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                             </tbody>
                         </table>
                     </div>
+                    <div class="pagination" id="pg-stock"></div>
                 </div>
 
                 <!-- Top Dispensed Medicines -->
                 <div class="card">
                     <div class="card-head">
                         <div class="card-title">
-                            <div class="card-title-icon cti-blue">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="3"  y="12" width="4" height="8" rx="1"/>
-                                    <rect x="10" y="7"  width="4" height="13" rx="1"/>
-                                    <rect x="17" y="3"  width="4" height="17" rx="1"/>
-                                </svg>
-                            </div>
+                            <div class="card-title-icon cti-blue"><i class="bi bi-bar-chart-fill"></i>                            </div>
                             Top Dispensed Medicines
                         </div>
                     </div>
@@ -375,18 +430,14 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                             </tbody>
                         </table>
                     </div>
+                    <div class="pagination" id="pg-dispensed"></div>
                 </div>
 
                 <!-- Expiring Soon -->
                 <div class="card">
                     <div class="card-head">
                         <div class="card-title">
-                            <div class="card-title-icon cti-green">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="12" cy="12" r="10"/>
-                                    <polyline points="12 6 12 12 16 14"/>
-                                </svg>
-                            </div>
+                            <div class="card-title-icon cti-green"><i class="bi bi-clock-history"></i>                            </div>
                             Expiring Soon
                         </div>
                     </div>
@@ -415,6 +466,7 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
                             </tbody>
                         </table>
                     </div>
+                    <div class="pagination" id="pg-expiry"></div>
                 </div>
 
             </div><!-- /dash-grid -->
@@ -423,6 +475,81 @@ function fmtPad($n, $len=3) { return str_pad($n, $len, '0', STR_PAD_LEFT); }
 </div><!-- /app-layout -->
 
 <div class="toast-tray" id="toastTray"></div>
+<script>
+
+/* ══ PAGINATION HELPER ══ */
+function initPagination(tbodyId, pgContainerId, perPage = 5) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    const pgContainer = document.getElementById(pgContainerId);
+    let currentPage = 1;
+
+    function getVisibleRows() {
+        return Array.from(tbody.querySelectorAll('tr[data-status], tr[data-id], tr[data-inv], tr:not(.no-paginate)'))
+            .filter(r => r.style.display !== 'none');
+    }
+
+    function render() {
+        const allRows = Array.from(tbody.querySelectorAll('tr[data-status], tr[data-id], tr[data-inv], tr:not(.no-paginate)'));
+        const filteredRows = allRows.filter(r => !r._searchHidden);
+        const total = filteredRows.length;
+        const totalPages = Math.max(1, Math.ceil(total / perPage));
+        if (currentPage > totalPages) currentPage = totalPages;
+        const start = (currentPage - 1) * perPage;
+        allRows.forEach(r => { r.style.display = 'none'; });
+        filteredRows.slice(start, start + perPage).forEach(r => { r.style.display = ''; });
+        renderControls(totalPages, total);
+    }
+
+    function renderControls(totalPages, total) {
+        if (!pgContainer) return;
+        pgContainer.innerHTML = '';
+        if (total === 0) return;
+        const info = document.createElement('span');
+        info.className = 'pg-info';
+        const start = (currentPage - 1) * perPage + 1;
+        const end = Math.min(currentPage * perPage, total);
+        info.textContent = `${start}–${end} of ${total}`;
+        const prev = document.createElement('button');
+        prev.className = 'pg-btn'; prev.innerHTML = '<i class="bi bi-chevron-left"></i>';
+        prev.disabled = currentPage === 1;
+        prev.onclick = () => { if (currentPage > 1) { currentPage--; render(); } };
+        pgContainer.appendChild(prev);
+        // Page numbers
+        for (let p = 1; p <= totalPages; p++) {
+            if (totalPages > 7 && Math.abs(p - currentPage) > 2 && p !== 1 && p !== totalPages) {
+                if (p === 2 || p === totalPages - 1) {
+                    const dots = document.createElement('span');
+                    dots.className = 'pg-info'; dots.textContent = '…';
+                    pgContainer.appendChild(dots);
+                }
+                continue;
+            }
+            const btn = document.createElement('button');
+            btn.className = 'pg-btn' + (p === currentPage ? ' active' : '');
+            btn.textContent = p;
+            btn.onclick = (pg => () => { currentPage = pg; render(); })(p);
+            pgContainer.appendChild(btn);
+        }
+        const next = document.createElement('button');
+        next.className = 'pg-btn'; next.innerHTML = '<i class="bi bi-chevron-right"></i>';
+        next.disabled = currentPage === totalPages;
+        next.onclick = () => { if (currentPage < totalPages) { currentPage++; render(); } };
+        pgContainer.appendChild(next);
+        pgContainer.appendChild(info);
+    }
+
+    // Expose reset for search/filter hooks
+    window['_pgReset_' + tbodyId] = () => { currentPage = 1; render(); };
+    render();
+    return { reset: () => { currentPage = 1; render(); } };
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    initPagination('txnBody',   'pg-txn',       5);
+    initPagination('stockBody', 'pg-stock',     5);
+});
+</script>
 <script src="../assets/js/dashboard.js"></script>
 </body>
 </html>

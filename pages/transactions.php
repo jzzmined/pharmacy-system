@@ -18,11 +18,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($action === 'mark_paid') {
                 $s = $db->prepare("UPDATE invoices SET Status='Completed' WHERE InvoiceID=? AND Status='Pending'");
                 $s->execute([$invoice_id]);
-                $txn_success = "✓ Invoice TXN-" . str_pad($invoice_id, 3, '0', STR_PAD_LEFT) . " marked as Paid.";
+                $txn_success = "Invoice TXN-" . str_pad($invoice_id, 3, '0', STR_PAD_LEFT) . " marked as Paid.";
             } elseif ($action === 'mark_cancelled') {
                 $s = $db->prepare("UPDATE invoices SET Status='Cancelled' WHERE InvoiceID=? AND Status='Pending'");
                 $s->execute([$invoice_id]);
-                $txn_success = "✓ Invoice TXN-" . str_pad($invoice_id, 3, '0', STR_PAD_LEFT) . " has been cancelled.";
+                $txn_success = "Invoice TXN-" . str_pad($invoice_id, 3, '0', STR_PAD_LEFT) . " has been cancelled.";
             }
         } catch (PDOException $e) {
             $txn_error = "Database error: " . $e->getMessage();
@@ -100,9 +100,8 @@ function statusClass($s) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PharmaCare — Invoices</title>
     <link rel="stylesheet" href="../assets/css/main.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
-        .txn-result.ok  { background:#dcfce7; color:#166534; border:1px solid #bbf7d0; border-radius:10px; padding:12px 18px; font-weight:600; margin-bottom:16px; }
-        .txn-result.err { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; border-radius:10px; padding:12px 18px; font-weight:600; margin-bottom:16px; }
 
         /* Summary strip */
         .txn-stats-strip { display:grid; grid-template-columns:repeat(5,1fr); border-bottom:1px solid #f1f5f9; }
@@ -147,13 +146,132 @@ function statusClass($s) {
         /* Scrollable */
         .inv-table-wrap {
             overflow-x:auto; overflow-y:auto;
-            max-height:calc(100vh - 320px);
+            max-height: 380px;
             scrollbar-width:thin; scrollbar-color:#cbd5e1 #f1f5f9;
         }
         .inv-table-wrap::-webkit-scrollbar { width:7px; height:7px; }
         .inv-table-wrap::-webkit-scrollbar-track { background:#f1f5f9; border-radius:999px; }
         .inv-table-wrap::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
         .inv-table-wrap::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
+    </style>
+    <style>
+        /* ══ OUTFIT FONT – single source ══ */
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
+
+        *, *::before, *::after { box-sizing: border-box; }
+        body, input, select, button, textarea { font-family: 'Outfit', sans-serif; }
+
+        /* ══ CONSISTENT BORDER RADIUS ══ */
+        :root { --br: 10px; --br-pill: 999px; --br-card: 14px; }
+
+        /* ══ SIDEBAR – no white box on active ══ */
+        .nav-item,
+        .nav-item:hover,
+        .nav-item.active { background: transparent !important; box-shadow: none !important; }
+
+        /* ══ SIDEBAR ICONS – white, sized, dimmed when inactive ══ */
+        .nav-item i.bi,
+        .brand-icon i.bi,
+        .sidebar-footer i.bi { color: #ffffff; }
+        .nav-item i.bi         { font-size: 1.6rem; display: block; line-height: 1; opacity: 0.45; transition: opacity .2s ease; }
+        .nav-item.active i.bi,
+        .nav-item:hover  i.bi  { opacity: 1 !important; }
+
+        /* ══ STAT CARD ICONS ══ */
+        .stat-icon i.bi { font-size: 1.7rem; color: #ffffff; }
+
+        /* ══ CARD TITLE ICONS ══ */
+        .card-title-icon i.bi {
+            font-size: 1.05rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* ══ ICON + TEXT GAP ══ */
+        .btn-with-icon, .card-title, .audit-section-head h3,
+        .backup-item, .backup-btn, .audit-btn-print, .audit-btn-send,
+        .admin-toolbar-left, .backup-header {
+            display: flex; align-items: center; gap: 8px;
+        }
+        i.bi + span, span + i.bi,
+        i.bi + strong, strong + i.bi { margin-left: 6px; }
+
+        /* ══ BUTTONS – consistent radius ══ */
+        .btn-add-user, .btn-add-med, .btn-primary, .btn-secondary,
+        .modal-btn-save, .modal-btn-cancel,
+        .audit-btn-print, .audit-btn-send,
+        .backup-btn, .audit-filter-btn,
+        .btn-mark-paid, .btn-mark-cancel,
+        .rx-search-btn { border-radius: var(--br) !important; }
+
+        /* ══ SEARCH BARS + DROPDOWNS – consistent radius ══ */
+        .inv-search, .inv-filter, .admin-search,
+        .rx-search-input, .modal-input,
+        .audit-filter-bar input[type="date"],
+        .sched-field select, .sched-field input,
+        .send-confirm-field input { border-radius: var(--br) !important; }
+
+        /* ══ ADMIN TOOLBAR ICON ══ */
+        i.bi.admin-toolbar-icon { font-size: 1.2rem; color: #64748b; }
+
+        /* ══ BACKUP ICONS ══ */
+        i.bi.backup-header-icon { font-size: 1.2rem; }
+        .backup-item-icon i.bi  { font-size: 1.4rem; display: flex; align-items: center; justify-content: center; }
+        .backup-btn i.bi        { font-size: 1rem; }
+
+        /* ══ USER ACTION BUTTONS ══ */
+        .ua-btn i.bi { font-size: 1rem; }
+
+        /* ══ AUDIT FOOTER BUTTONS ══ */
+        .audit-btn-print i.bi,
+        .audit-btn-send  i.bi { font-size: .95rem; }
+
+        /* ══ RESULT / FLASH BANNERS ══ */
+        .rx-result, .txn-result, .inv-result, .admin-flash {
+            display: flex; align-items: center; gap: 10px;
+            border-radius: var(--br);
+            padding: 12px 18px;
+            font-size: .875rem; font-weight: 600;
+            margin-bottom: 16px;
+        }
+        .rx-result.ok, .txn-result.ok, .inv-result.ok, .admin-flash-ok {
+            background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0;
+        }
+        .rx-result.err, .txn-result.err, .inv-result.err, .admin-flash-err {
+            background: #fee2e2; color: #dc2626; border: 1px solid #fecaca;
+        }
+        .rx-result i.bi, .txn-result i.bi,
+        .inv-result i.bi, .admin-flash i.bi { font-size: 1rem; flex-shrink: 0; }
+
+        /* ══ FLASH CLOSE ══ */
+        .flash-close {
+            margin-left: auto; background: none; border: none;
+            cursor: pointer; color: inherit; opacity: .6; font-size: .85rem;
+        }
+        .flash-close:hover { opacity: 1; }
+
+        /* ══ PAGINATION ══ */
+        .pagination {
+            display: flex; align-items: center; gap: 4px;
+            padding: 12px 18px; border-top: 1px solid #f1f5f9;
+            justify-content: flex-end; flex-wrap: wrap;
+        }
+        .pg-btn {
+            min-width: 32px; height: 32px; padding: 0 8px;
+            border: 1.5px solid #e2e8f0; border-radius: var(--br);
+            background: #fff; color: #475569;
+            font-family: 'Outfit', sans-serif; font-size: .8rem; font-weight: 600;
+            cursor: pointer; transition: all .15s;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .pg-btn:hover  { background: #f1f5f9; border-color: #cbd5e1; }
+        .pg-btn.active { background: #1e2d40; color: #fff; border-color: #1e2d40; }
+        .pg-btn:disabled { opacity: .4; cursor: not-allowed; }
+        .pg-info { font-size: .78rem; color: #94a3b8; margin: 0 6px; }
+
+        /* ══ CONSISTENT TABLE/CONTAINER HEIGHT ══ */
+        .card .table-scroll,
+        .inv-table-wrap,
+        .admin-table-wrap { min-height: 280px; }
     </style>
 </head>
 <body>
@@ -165,59 +283,26 @@ function statusClass($s) {
     <!-- ══ SIDEBAR ══ -->
     <aside class="sidebar" id="sidebar">
                 <div class="sidebar-brand">
-            <div class="brand-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                    <rect x="3" y="3" width="18" height="18" rx="3"/>
-                    <line x1="12" y1="7" x2="12" y2="17"/>
-                    <line x1="7"  y1="12" x2="17" y2="12"/>
-                </svg>
-            </div>
             <span class="brand-name">Pharma<br>Care<span style="font-size:0.6em;vertical-align:super;margin-left:1px;opacity:0.7;">&#9825;</span></span>
         </div>
         <nav class="sidebar-nav">
             <a href="dashboard.php" class="nav-item" data-label="Dashboard">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/>
-                    <polyline points="9 21 9 12 15 12 15 21"/>
-                </svg>
-
+                <i class="bi bi-house-door-fill"></i>
             </a>
             <a href="prescriptions.php" class="nav-item" data-label="Prescriptions">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
-                    <rect x="9" y="3" width="6" height="4" rx="2"/>
-                    <path d="M9 12h6M9 16h4"/>
-                </svg>
-
+                <i class="bi bi-file-medical-fill"></i>
             </a>
             <a href="transactions.php" class="nav-item active" data-label="Transactions">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <circle cx="12" cy="15" r="3"/>
-                    <polyline points="12 13.5 12 15 13 16"/>
-                </svg>
-
+                <i class="bi bi-receipt-cutoff"></i>
             </a>
             <a href="inventory.php" class="nav-item" data-label="Inventory">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="2" y="9" width="20" height="6" rx="3"/>
-                    <line x1="12" y1="9" x2="12" y2="15"/>
-                    <circle cx="7" cy="12" r="2.5" fill="currentColor" stroke="none" opacity="0.3"/>
-                </svg>
-
+                <i class="bi bi-capsule-pill"></i>
             </a>
             <a href="admin.php" class="nav-item" data-label="Admin">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="8" r="3"/>
-                    <path d="M5 20a7 7 0 0 1 14 0"/>
-                    <circle cx="19" cy="19" r="2"/>
-                    <path d="M19 15v2M19 21v1M15.5 17l1.5 1M22.5 21l-1.5-1M15.5 21l1.5-1M22.5 17l-1.5 1"/>
-                </svg>
-
+                <i class="bi bi-shield-lock-fill"></i>
             </a>
         </nav>
-        <a href="../logout.php" class="sidebar-footer" onclick="return confirm('Log out?')" title="Logout">
+        <a href="#" class="sidebar-footer" onclick="pcConfirm({title:'Log Out',body:'Are you sure you want to log out of PharmaCare?',okText:'Log Out',type:'warning',icon:'bi-box-arrow-right',onOk:()=>window.location.href='../logout.php'})" title="Logout">
             <div class="s-avatar"><?= strtoupper(substr($_SESSION['full_name'] ?? 'P', 0, 1)) ?></div>
         </a>
     </aside>
@@ -229,10 +314,10 @@ function statusClass($s) {
         <div class="page-body">
 
             <?php if ($txn_success): ?>
-                <div class="txn-result ok"><?= htmlspecialchars($txn_success) ?></div>
+                <div class="txn-result ok"><?= $txn_success ?></div>
             <?php endif; ?>
             <?php if ($txn_error): ?>
-                <div class="txn-result err"><?= htmlspecialchars($txn_error) ?></div>
+                <div class="txn-result err"><?= $txn_error ?></div>
             <?php endif; ?>
 
             <div class="invoices-card">
@@ -372,17 +457,17 @@ function statusClass($s) {
                                             <form method="POST" style="margin:0">
                                                 <input type="hidden" name="action" value="mark_paid">
                                                 <input type="hidden" name="invoice_id" value="<?= $r['InvoiceID'] ?>">
-                                                <button type="submit" class="btn-mark-paid"
-                                                    onclick="return confirm('Confirm payment for TXN-<?= fmtPad($r['InvoiceID']) ?>?\n\nTotal: ₱<?= number_format((float)$r['Total'], 2) ?>')">
-                                                    ✓ Paid
+                                                <button type="button" class="btn-mark-paid"
+                                                    onclick="confirmPaid(this, 'TXN-<?= fmtPad($r['InvoiceID']) ?>', '<?= number_format((float)$r['Total'],2) ?>')">
+                                                    Paid
                                                 </button>
                                             </form>
                                             <form method="POST" style="margin:0">
                                                 <input type="hidden" name="action" value="mark_cancelled">
                                                 <input type="hidden" name="invoice_id" value="<?= $r['InvoiceID'] ?>">
-                                                <button type="submit" class="btn-mark-cancel"
-                                                    onclick="return confirm('Cancel invoice TXN-<?= fmtPad($r['InvoiceID']) ?>?')">
-                                                    ✕
+                                                <button type="button" class="btn-mark-cancel"
+                                                    onclick="confirmCancel(this, 'TXN-<?= fmtPad($r['InvoiceID']) ?>')">
+                                                    Cancel
                                                 </button>
                                             </form>
                                         </div>
@@ -396,6 +481,7 @@ function statusClass($s) {
                         </tbody>
                     </table>
                 </div>
+                <div class="pagination" id="pg-invoices"></div>
 
             </div><!-- /invoices-card -->
         </div><!-- /page-body -->
@@ -406,6 +492,80 @@ function statusClass($s) {
 
 <script>
 'use strict';
+
+
+/* ══ PAGINATION HELPER ══ */
+function initPagination(tbodyId, pgContainerId, perPage = 5) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    const pgContainer = document.getElementById(pgContainerId);
+    let currentPage = 1;
+
+    function getVisibleRows() {
+        return Array.from(tbody.querySelectorAll('tr[data-status], tr[data-id], tr[data-inv], tr:not(.no-paginate)'))
+            .filter(r => r.style.display !== 'none');
+    }
+
+    function render() {
+        const allRows = Array.from(tbody.querySelectorAll('tr[data-status], tr[data-id], tr[data-inv], tr:not(.no-paginate)'));
+        const filteredRows = allRows.filter(r => !r._searchHidden);
+        const total = filteredRows.length;
+        const totalPages = Math.max(1, Math.ceil(total / perPage));
+        if (currentPage > totalPages) currentPage = totalPages;
+        const start = (currentPage - 1) * perPage;
+        allRows.forEach(r => { r.style.display = 'none'; });
+        filteredRows.slice(start, start + perPage).forEach(r => { r.style.display = ''; });
+        renderControls(totalPages, total);
+    }
+
+    function renderControls(totalPages, total) {
+        if (!pgContainer) return;
+        pgContainer.innerHTML = '';
+        if (total === 0) return;
+        const info = document.createElement('span');
+        info.className = 'pg-info';
+        const start = (currentPage - 1) * perPage + 1;
+        const end = Math.min(currentPage * perPage, total);
+        info.textContent = `${start}–${end} of ${total}`;
+        const prev = document.createElement('button');
+        prev.className = 'pg-btn'; prev.innerHTML = '<i class="bi bi-chevron-left"></i>';
+        prev.disabled = currentPage === 1;
+        prev.onclick = () => { if (currentPage > 1) { currentPage--; render(); } };
+        pgContainer.appendChild(prev);
+        // Page numbers
+        for (let p = 1; p <= totalPages; p++) {
+            if (totalPages > 7 && Math.abs(p - currentPage) > 2 && p !== 1 && p !== totalPages) {
+                if (p === 2 || p === totalPages - 1) {
+                    const dots = document.createElement('span');
+                    dots.className = 'pg-info'; dots.textContent = '…';
+                    pgContainer.appendChild(dots);
+                }
+                continue;
+            }
+            const btn = document.createElement('button');
+            btn.className = 'pg-btn' + (p === currentPage ? ' active' : '');
+            btn.textContent = p;
+            btn.onclick = (pg => () => { currentPage = pg; render(); })(p);
+            pgContainer.appendChild(btn);
+        }
+        const next = document.createElement('button');
+        next.className = 'pg-btn'; next.innerHTML = '<i class="bi bi-chevron-right"></i>';
+        next.disabled = currentPage === totalPages;
+        next.onclick = () => { if (currentPage < totalPages) { currentPage++; render(); } };
+        pgContainer.appendChild(next);
+        pgContainer.appendChild(info);
+    }
+
+    // Expose reset for search/filter hooks
+    window['_pgReset_' + tbodyId] = () => { currentPage = 1; render(); };
+    render();
+    return { reset: () => { currentPage = 1; render(); } };
+}
+
+let pgInvoices;
+document.addEventListener('DOMContentLoaded', function() {
+    pgInvoices = initPagination('invBody', 'pg-invoices', 5);
+});
 const searchInput  = document.getElementById('invSearch');
 const filterSelect = document.getElementById('invFilter');
 const rows         = document.querySelectorAll('#invBody tr[data-status]');
@@ -420,8 +580,9 @@ function applyFilters() {
             (row.dataset.patient || '').includes(q) ||
             (row.dataset.doctor  || '').includes(q);
         const matchStatus = !status || (row.dataset.status || '') === status;
-        row.style.display = matchSearch && matchStatus ? '' : 'none';
+        row._searchHidden = !(matchSearch && matchStatus);
     });
+    if (window['_pgReset_invBody']) window['_pgReset_invBody']();
 }
 searchInput.addEventListener('input', applyFilters);
 filterSelect.addEventListener('change', applyFilters);
@@ -431,6 +592,88 @@ const sidebarOverlay = document.getElementById('sidebarOverlay');
 const sidebarToggle  = document.getElementById('sidebarToggle');
 if (sidebarToggle) sidebarToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); sidebarOverlay.classList.toggle('show'); });
 if (sidebarOverlay) sidebarOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('show'); });
+
+/* ── Transaction confirm helpers ── */
+function confirmPaid(btn, txnId, total) {
+    const form = btn.closest('form');
+    pcConfirm({
+        title:  'Confirm Payment',
+        body:   `Mark <strong>${txnId}</strong> as paid?<br><span style="color:#16a34a;font-weight:700;">Total: ₱${total}</span>`,
+        okText: 'Confirm Payment',
+        type:   'info',
+        icon:   'bi-cash-coin',
+        onOk:   () => form.submit()
+    });
+}
+function confirmCancel(btn, txnId) {
+    const form = btn.closest('form');
+    pcConfirm({
+        title:  'Cancel Invoice',
+        body:   `Cancel invoice <strong>${txnId}</strong>? This cannot be undone.`,
+        okText: 'Cancel Invoice',
+        type:   'danger',
+        icon:   'bi-x-circle-fill',
+        onOk:   () => form.submit()
+    });
+}
+
+function showToast(msg, type = 'ok', duration = 3200) {
+    const icons = { ok:'bi-check-circle-fill', warn:'bi-exclamation-triangle-fill', err:'bi-x-circle-fill', info:'bi-info-circle-fill' };
+    const tray  = document.getElementById('toastTray');
+    if (!tray) return;
+    const toast = document.createElement('div');
+    toast.className = `toast-msg t-${type}`;
+    toast.innerHTML = `<i class="bi ${icons[type]||'bi-info-circle-fill'} t-icon"></i><span>${msg}</span>`;
+    tray.appendChild(toast);
+    setTimeout(() => {
+        toast.style.transition = 'opacity .3s ease, transform .3s ease';
+        toast.style.opacity    = '0';
+        toast.style.transform  = 'translateY(8px) scale(.96)';
+        setTimeout(() => toast.remove(), 320);
+    }, duration);
+}
+
+function pcConfirm({ title='Are you sure?', body='', okText='Confirm', type='warning', icon=null, onOk }) {
+    const iconMap = {
+        danger:  { bi:'bi-exclamation-triangle-fill', cls:'danger'  },
+        warning: { bi:'bi-exclamation-circle-fill',   cls:'warning' },
+        info:    { bi:'bi-info-circle-fill',           cls:'info'    },
+    };
+    const ic = iconMap[type] || iconMap.warning;
+    const usedIcon = icon || ic.bi;
+    let overlay = document.getElementById('pcConfirmOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id        = 'pcConfirmOverlay';
+        overlay.className = 'pc-confirm-overlay';
+        overlay.innerHTML = `
+            <div class="pc-confirm-box">
+                <div class="pc-confirm-icon" id="pcConfirmIcon"><i class="bi" id="pcConfirmIconI"></i></div>
+                <div class="pc-confirm-title" id="pcConfirmTitle"></div>
+                <div class="pc-confirm-body"  id="pcConfirmBody"></div>
+                <div class="pc-confirm-btns">
+                    <button class="pc-confirm-cancel" id="pcConfirmCancel">Cancel</button>
+                    <button class="pc-confirm-ok"     id="pcConfirmOk"></button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        overlay.addEventListener('click', e => { if (e.target === overlay) closeConfirm(); });
+        document.getElementById('pcConfirmCancel').addEventListener('click', closeConfirm);
+    }
+    document.getElementById('pcConfirmIcon').className    = `pc-confirm-icon ${ic.cls}`;
+    document.getElementById('pcConfirmIconI').className   = `bi ${usedIcon}`;
+    document.getElementById('pcConfirmTitle').textContent = title;
+    document.getElementById('pcConfirmBody').innerHTML    = body;
+    const okBtn = document.getElementById('pcConfirmOk');
+    okBtn.textContent = okText;
+    okBtn.className   = `pc-confirm-ok ${type}`;
+    okBtn.onclick     = () => { closeConfirm(); if (onOk) onOk(); };
+    requestAnimationFrame(() => overlay.classList.add('show'));
+}
+function closeConfirm() {
+    const ov = document.getElementById('pcConfirmOverlay');
+    if (ov) ov.classList.remove('show');
+}
 </script>
 </body>
 </html>
