@@ -211,20 +211,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
     }
 }
 
-// ── Archive medication (soft delete) ──
+// ── Archive / Return to Manufacturer ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'archive_medication') {
     try {
-        $db = getDB();
-        $id = (int)($_POST['medication_id'] ?? 0);
+        $db        = getDB();
+        $id        = (int)($_POST['medication_id'] ?? 0);
+        $is_return = trim($_POST['is_return'] ?? 'no');
+
         if ($id > 0) {
-            $nm = $db->prepare("SELECT GenericName, DosageStrength FROM medications WHERE MedicationID=?");
+            $nm = $db->prepare("SELECT m.GenericName, m.DosageStrength, m.BrandName,
+                                       MIN(md.Manufacturer) AS Manufacturer,
+                                       GetMedicationStockLevel(m.MedicationID) AS LiveStock
+                                FROM medications m
+                                LEFT JOIN medicationdetails md ON md.MedicationID = m.MedicationID
+                                WHERE m.MedicationID = ?
+                                GROUP BY m.MedicationID");
             $nm->execute([$id]);
-            $med = $nm->fetch();
+            $med     = $nm->fetch();
             $medName = $med ? htmlspecialchars($med['GenericName'] . ' ' . $med['DosageStrength']) : "This medication";
 
-            $s = $db->prepare("UPDATE medications SET IsActive = 0 WHERE MedicationID=?");
-            $s->execute([$id]);
-            $success = "<i class=\"bi bi-check-circle-fill\" style=\"color:#16a34a\"></i> \"{$medName}\" has been archived and removed from active inventory.";
+            // Soft-delete regardless of return choice
+            $db->prepare("UPDATE medications SET IsActive = 0 WHERE MedicationID=?")->execute([$id]);
+
+            if ($is_return === 'yes') {
+                $return_reason  = trim($_POST['return_reason']  ?? 'Expired');
+                $units_returned = (int)($_POST['units_returned'] ?? 0);
+                $notes          = trim($_POST['return_notes']   ?? '');
+                $returned_by    = $_SESSION['user_id'] ?? 1;
+                $actualStock    = (int)($med['LiveStock'] ?? 0);
+                if ($units_returned <= 0) $units_returned = $actualStock;
+
+                // Auto-create table if needed
+                $db->exec("CREATE TABLE IF NOT EXISTS manufacturer_returns (
+                    ReturnID        INT AUTO_INCREMENT PRIMARY KEY,
+                    MedicationID    INT NOT NULL,
+                    ReturnReason    VARCHAR(100) NOT NULL DEFAULT 'Expired',
+                    UnitsReturned   INT NOT NULL DEFAULT 0,
+                    Manufacturer    VARCHAR(150),
+                    Notes           TEXT,
+                    ReturnedBy      INT,
+                    ReturnedAt      DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_med (MedicationID)
+                )");
+
+                $ins = $db->prepare("INSERT INTO manufacturer_returns
+                                     (MedicationID, ReturnReason, UnitsReturned, Manufacturer, Notes, ReturnedBy)
+                                     VALUES (?, ?, ?, ?, ?, ?)");
+                $ins->execute([
+                    $id, $return_reason, $units_returned,
+                    $med['Manufacturer'] ?? '', $notes, $returned_by
+                ]);
+
+                $success = "<i class=\"bi bi-check-circle-fill\" style=\"color:#16a34a\"></i> "
+                         . "\"{$medName}\" archived and returned to manufacturer. "
+                         . "<strong>{$units_returned} unit(s)</strong> logged — Reason: <strong>{$return_reason}</strong>.";
+            } else {
+                $success = "<i class=\"bi bi-check-circle-fill\" style=\"color:#16a34a\"></i> "
+                         . "\"{$medName}\" has been archived and removed from active inventory.";
+            }
         }
     } catch (PDOException $e) {
         $error = "Database error: " . $e->getMessage();
@@ -272,28 +316,67 @@ try {
     $s->execute();
     $med_list = $s->fetchAll();
 
-    // Fetch archived medications
-    $s = $db->prepare("
-        SELECT
-            m.MedicationID,
-            m.GenericName,
-            m.BrandName,
-            m.DosageStrength,
-            MIN(md.UnitPrice)       AS UnitPrice,
-            MIN(md.ExpirationDate)  AS ExpirationDate,
-            c.CategoryName,
-            s.SupplierName
-        FROM medications m
-        LEFT JOIN medicationdetails md ON md.MedicationID = m.MedicationID
-        LEFT JOIN categories c ON c.CategoryID = m.CategoryID
-        LEFT JOIN suppliers  s ON s.SupplierID = m.SupplierID
-        WHERE m.IsActive = 0
-        GROUP BY m.MedicationID, m.GenericName, m.BrandName, m.DosageStrength,
-                 c.CategoryName, s.SupplierName
-        ORDER BY m.GenericName ASC
-    ");
-    $s->execute();
-    $archived = $s->fetchAll();
+    // Fetch archived medications + latest return log entry
+    // Gracefully falls back if manufacturer_returns table doesn't exist yet
+    try {
+        $s = $db->prepare("
+            SELECT
+                m.MedicationID,
+                m.GenericName,
+                m.BrandName,
+                m.DosageStrength,
+                MIN(md.UnitPrice)       AS UnitPrice,
+                MIN(md.ExpirationDate)  AS ExpirationDate,
+                c.CategoryName,
+                sup.SupplierName,
+                mr.ReturnReason,
+                mr.UnitsReturned,
+                mr.Manufacturer         AS ReturnManufacturer,
+                mr.Notes                AS ReturnNotes,
+                mr.ReturnedAt,
+                u.FullName              AS ReturnedByName
+            FROM medications m
+            LEFT JOIN medicationdetails md ON md.MedicationID = m.MedicationID
+            LEFT JOIN categories c         ON c.CategoryID    = m.CategoryID
+            LEFT JOIN suppliers  sup       ON sup.SupplierID  = m.SupplierID
+            LEFT JOIN (
+                SELECT mr2.*
+                FROM manufacturer_returns mr2
+                INNER JOIN (
+                    SELECT MedicationID, MAX(ReturnID) AS MaxID
+                    FROM manufacturer_returns
+                    GROUP BY MedicationID
+                ) latest ON mr2.ReturnID = latest.MaxID
+            ) mr ON mr.MedicationID = m.MedicationID
+            LEFT JOIN users u ON u.UserID = mr.ReturnedBy
+            WHERE m.IsActive = 0
+            GROUP BY m.MedicationID, m.GenericName, m.BrandName, m.DosageStrength,
+                     c.CategoryName, sup.SupplierName,
+                     mr.ReturnReason, mr.UnitsReturned, mr.Manufacturer, mr.Notes,
+                     mr.ReturnedAt, u.FullName
+            ORDER BY mr.ReturnedAt DESC, m.GenericName ASC
+        ");
+        $s->execute();
+        $archived = $s->fetchAll();
+    } catch (PDOException $e) {
+        // manufacturer_returns table may not exist yet — fall back to simple query
+        $s = $db->prepare("
+            SELECT m.MedicationID, m.GenericName, m.BrandName, m.DosageStrength,
+                   MIN(md.UnitPrice) AS UnitPrice, MIN(md.ExpirationDate) AS ExpirationDate,
+                   c.CategoryName, sup.SupplierName,
+                   NULL AS ReturnReason, NULL AS UnitsReturned, NULL AS ReturnManufacturer,
+                   NULL AS ReturnNotes, NULL AS ReturnedAt, NULL AS ReturnedByName
+            FROM medications m
+            LEFT JOIN medicationdetails md ON md.MedicationID = m.MedicationID
+            LEFT JOIN categories c         ON c.CategoryID    = m.CategoryID
+            LEFT JOIN suppliers  sup       ON sup.SupplierID  = m.SupplierID
+            WHERE m.IsActive = 0
+            GROUP BY m.MedicationID, m.GenericName, m.BrandName, m.DosageStrength, c.CategoryName, sup.SupplierName
+            ORDER BY m.GenericName ASC
+        ");
+        $s->execute();
+        $archived = $s->fetchAll();
+    }
 
 } catch (PDOException $e) {
     $medications = [];
@@ -587,12 +670,12 @@ function fmtPad($n, $len = 3): string
                             <!-- View Toggle -->
                             <div style="display:flex;border:1.5px solid #e2e8f0;border-radius:10px;overflow:hidden;flex-shrink:0;">
                                 <button id="viewActive" onclick="switchView('active')"
-                                    style="padding:8px 14px;font-size:.8rem;font-weight:700;font-family:'Outfit',sans-serif;border:none;cursor:pointer;background:#1e2d40;color:#fff;display:flex;align-items:center;gap:5px;">
+                                    style="padding:8px 16px;font-size:.8rem;font-weight:700;font-family:'Outfit',sans-serif;border:none;cursor:pointer;background:#1e2d40;color:#fff;display:flex;align-items:center;gap:5px;">
                                     <i class="bi bi-capsule-pill"></i> Active
                                 </button>
                                 <button id="viewArchived" onclick="switchView('archived')"
-                                    style="padding:8px 14px;font-size:.8rem;font-weight:700;font-family:'Outfit',sans-serif;border:none;cursor:pointer;background:#fff;color:#64748b;display:flex;align-items:center;gap:5px;">
-                                    <i class="bi bi-archive"></i> Archived
+                                    style="padding:8px 16px;font-size:.8rem;font-weight:700;font-family:'Outfit',sans-serif;border:none;cursor:pointer;background:#fff;color:#64748b;display:flex;align-items:center;gap:5px;">
+                                    <i class="bi bi-archive-fill"></i> Archived
                                     <?php if (!empty($archived)): ?>
                                     <span style="background:#ea580c;color:#fff;border-radius:20px;padding:1px 7px;font-size:.65rem;"><?= count($archived) ?></span>
                                     <?php endif; ?>
@@ -714,7 +797,7 @@ function fmtPad($n, $len = 3): string
                                                             <i class="bi bi-pencil-fill"></i>
                                                         </button>
                                                     <?php endif; ?>
-                                                    <button onclick="confirmArchive(<?= $m['MedicationID'] ?>, '<?= htmlspecialchars($m['GenericName'], ENT_QUOTES) ?>')" title="Archive"
+                                                    <button onclick="confirmArchive(<?= $m['MedicationID'] ?>, '<?= htmlspecialchars($m['GenericName'], ENT_QUOTES) ?>', <?= (int)($m['LiveStock'] ?? 0) ?>, '<?= htmlspecialchars($m['Manufacturer'] ?? '', ENT_QUOTES) ?>')" title="Archive"
                                                         style="width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1.5px solid #fed7aa;background:#fff7ed;color:#ea580c;cursor:pointer;padding:0;">
                                                         <i class="bi bi-archive-fill"></i>
                                                     </button>
@@ -733,66 +816,172 @@ function fmtPad($n, $len = 3): string
 
                     </div><!-- /activePanel -->
 
-                    <!-- ══ Archived Medicines Panel ══ -->
+                    <!-- ══ Returned to Manufacturer Panel ══ -->
                     <div id="archivedPanel" style="display:none;">
 
-                        <!-- Archived subheader -->
-                        <div style="padding:10px 16px 8px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f1f5f9;">
-                            <i class="bi bi-archive-fill" style="color:#ea580c;font-size:.95rem;"></i>
-                            <span style="font-size:.88rem;font-weight:700;color:#0f172a;">Archived Medicines</span>
-                            <span style="font-size:.75rem;font-weight:600;color:#94a3b8;"><?= count($archived) ?> record(s)</span>
-                            <span style="font-size:.75rem;color:#94a3b8;margin-left:4px;">— Restore to make them available again.</span>
+                        <!-- Panel header -->
+                        <div style="padding:14px 20px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #fde8d8;background:linear-gradient(90deg,#fff7f0 0%,#fff 100%);">
+                            <div style="width:34px;height:34px;background:#fff0e6;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                <i class="bi bi-truck" style="color:#ea580c;font-size:1rem;"></i>
+                            </div>
+                            <div>
+                                <div style="font-size:.9rem;font-weight:700;color:#0f172a;line-height:1.2;">Returned to Manufacturer</div>
+                                <div style="font-size:.73rem;color:#94a3b8;margin-top:1px;">
+                                    <?= count($archived) ?> medication(s) returned &nbsp;·&nbsp; Stock removed from active inventory
+                                </div>
+                            </div>
+                            <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+                                <?php
+                                $totalUnitsReturned = array_sum(array_column($archived, 'UnitsReturned'));
+                                $reasonCounts = array_count_values(array_filter(array_column($archived, 'ReturnReason')));
+                                ?>
+                                <?php if ($totalUnitsReturned > 0): ?>
+                                <div style="background:#fff0e6;border:1.5px solid #fed7aa;border-radius:8px;padding:5px 12px;text-align:center;">
+                                    <div style="font-size:.65rem;color:#ea580c;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">Total Units</div>
+                                    <div style="font-size:.95rem;font-weight:800;color:#c2410c;"><?= number_format($totalUnitsReturned) ?></div>
+                                </div>
+                                <?php endif; ?>
+                                <?php foreach ($reasonCounts as $rsn => $cnt): ?>
+                                <div style="background:#fafafa;border:1.5px solid #e2e8f0;border-radius:8px;padding:5px 12px;text-align:center;">
+                                    <div style="font-size:.65rem;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.05em;"><?= htmlspecialchars($rsn) ?></div>
+                                    <div style="font-size:.95rem;font-weight:800;color:#334155;"><?= $cnt ?></div>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
                         </div>
 
-                        <div class="med-table-wrap">
-                            <table class="med-table" id="archivedTable">
-                                <thead>
-                                    <tr>
-                                        <th>Med ID</th>
-                                        <th>Generic Name</th>
-                                        <th>Brand</th>
-                                        <th>Dosage</th>
-                                        <th>Category</th>
-                                        <th>Unit Price</th>
-                                        <th>Expiry</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php if (empty($archived)): ?>
-                                        <tr><td colspan="8" class="med-empty">
-                                            <i class="bi bi-archive" style="font-size:1.5rem;color:#cbd5e1;display:block;margin-bottom:8px;"></i>
-                                            No archived medicines yet.
-                                        </td></tr>
-                                    <?php else: ?>
-                                        <?php foreach ($archived as $a): ?>
-                                        <tr style="opacity:.8;">
-                                            <td class="med-col-id">MED-<?= fmtPad($a['MedicationID']) ?></td>
-                                            <td class="med-col-name" style="color:#94a3b8;"><?= htmlspecialchars($a['GenericName']) ?></td>
-                                            <td class="med-col-brand" style="color:#94a3b8;"><?= htmlspecialchars($a['BrandName']) ?></td>
-                                            <td class="med-col-dose" style="color:#94a3b8;"><?= htmlspecialchars($a['DosageStrength']) ?></td>
-                                            <td style="font-size:.78rem;color:#94a3b8;">
-                                                <?= !empty($a['CategoryName']) ? htmlspecialchars($a['CategoryName']) : '—' ?>
-                                            </td>
-                                            <td style="color:#94a3b8;"><?= $a['UnitPrice'] ? '&#8369;' . number_format((float)$a['UnitPrice'], 2) : '—' ?></td>
-                                            <td style="color:#94a3b8;"><?= htmlspecialchars($a['ExpirationDate'] ?? '—') ?></td>
-                                            <td>
-                                                <form method="POST" action="?view=archived" style="display:inline;">
-                                                    <input type="hidden" name="action" value="restore_medication">
-                                                    <input type="hidden" name="medication_id" value="<?= $a['MedicationID'] ?>">
-                                                    <button type="submit" title="Restore to active inventory"
-                                                        style="display:inline-flex;align-items:center;gap:5px;padding:0 12px;height:32px;border-radius:8px;border:1.5px solid #bbf7d0;background:#dcfce7;color:#15803d;cursor:pointer;font-size:.75rem;font-weight:700;font-family:'Outfit',sans-serif;">
-                                                        <i class="bi bi-arrow-counterclockwise"></i> Restore
-                                                    </button>
-                                                </form>
-                                            </td>
-                                        </tr>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-                                </tbody>
-                            </table>
-                        </div>
+                        <!-- Return log cards -->
+                        <div class="archived-cards-scroll" style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;max-height:480px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:#fed7aa #fff7ed;">
 
+                            <?php if (empty($archived)): ?>
+                            <div style="text-align:center;padding:48px 20px;color:#94a3b8;">
+                                <i class="bi bi-truck" style="font-size:2.5rem;display:block;margin-bottom:12px;opacity:.4;"></i>
+                                <div style="font-weight:700;font-size:.95rem;margin-bottom:4px;">No returns yet</div>
+                                <div style="font-size:.82rem;">Medications returned to manufacturers will appear here.</div>
+                            </div>
+                            <?php else: ?>
+
+                            <?php foreach ($archived as $a):
+                                $isReturned  = !empty($a['ReturnReason']);
+                                $reasonColor = match($a['ReturnReason'] ?? '') {
+                                    'Expired'         => ['bg'=>'#fff0e6','border'=>'#fed7aa','text'=>'#c2410c','icon'=>'bi-clock-history'],
+                                    'Damaged'         => ['bg'=>'#fff0f0','border'=>'#fecaca','text'=>'#b91c1c','icon'=>'bi-exclamation-triangle-fill'],
+                                    'Recalled'        => ['bg'=>'#fdf4ff','border'=>'#e9d5ff','text'=>'#7c3aed','icon'=>'bi-megaphone-fill'],
+                                    'Overstock'       => ['bg'=>'#eff6ff','border'=>'#bfdbfe','text'=>'#1d4ed8','icon'=>'bi-box-seam'],
+                                    'Quality Issue'   => ['bg'=>'#fefce8','border'=>'#fde68a','text'=>'#92400e','icon'=>'bi-shield-exclamation'],
+                                    default           => ['bg'=>'#f8fafc','border'=>'#e2e8f0','text'=>'#64748b','icon'=>'bi-archive-fill'],
+                                };
+                                $expiry      = $a['ExpirationDate'] ?? null;
+                                $isExpired   = $expiry && strtotime($expiry) < time();
+                                $returnedAt  = $a['ReturnedAt'] ? date('M d, Y', strtotime($a['ReturnedAt'])) : null;
+
+                                // Stripe config: truck=returned, archive=just archived
+                                $stripeIcon  = $isReturned ? 'bi-truck'        : 'bi-archive-fill';
+                                $stripeBg    = $isReturned ? '#fff0e6'         : '#f1f5f9';
+                                $stripeBord  = $isReturned ? '#fed7aa'         : '#e2e8f0';
+                                $stripeColor = $isReturned ? '#ea580c'         : '#64748b';
+                            ?>
+                            <div style="border:1.5px solid <?= $isReturned ? '#fed7aa' : '#e2e8f0' ?>;border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+
+                                <!-- Card top row -->
+                                <div style="display:flex;align-items:stretch;gap:0;">
+
+                                    <!-- Left stripe: truck = returned to manufacturer, archive = just archived -->
+                                    <div style="width:56px;background:<?= $stripeBg ?>;border-right:1.5px solid <?= $stripeBord ?>;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:14px 0;flex-shrink:0;">
+                                        <i class="bi <?= $stripeIcon ?>" style="font-size:1.3rem;color:<?= $stripeColor ?>;"></i>
+                                        <span style="font-size:.55rem;font-weight:800;color:<?= $stripeColor ?>;text-transform:uppercase;letter-spacing:.04em;text-align:center;line-height:1.2;padding:0 4px;">
+                                            <?= $isReturned ? 'Returned' : 'Archived' ?>
+                                        </span>
+                                    </div>
+
+                                    <!-- Main info -->
+                                    <div style="flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:6px;">
+                                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                                            <span style="font-size:.7rem;font-weight:700;color:#94a3b8;background:#f1f5f9;padding:2px 8px;border-radius:6px;">MED-<?= fmtPad($a['MedicationID']) ?></span>
+                                            <span style="font-size:.95rem;font-weight:700;color:#0f172a;"><?= htmlspecialchars($a['GenericName']) ?></span>
+                                            <?php if ($a['DosageStrength']): ?><span style="font-size:.78rem;color:#64748b;"><?= htmlspecialchars($a['DosageStrength']) ?></span><?php endif; ?>
+                                            <?php if ($a['BrandName']): ?><span style="font-size:.73rem;color:#94a3b8;">(<?= htmlspecialchars($a['BrandName']) ?>)</span><?php endif; ?>
+
+                                            <!-- Status badge: returned with reason OR just archived -->
+                                            <?php if ($isReturned): ?>
+                                            <span style="margin-left:auto;font-size:.7rem;font-weight:700;color:<?= $reasonColor['text'] ?>;background:<?= $reasonColor['bg'] ?>;border:1.5px solid <?= $reasonColor['border'] ?>;padding:3px 10px;border-radius:999px;display:inline-flex;align-items:center;gap:4px;">
+                                                <i class="bi bi-truck"></i> Returned · <?= htmlspecialchars($a['ReturnReason']) ?>
+                                            </span>
+                                            <?php else: ?>
+                                            <span style="margin-left:auto;font-size:.7rem;font-weight:700;color:#64748b;background:#f1f5f9;border:1.5px solid #e2e8f0;padding:3px 10px;border-radius:999px;display:inline-flex;align-items:center;gap:4px;">
+                                                <i class="bi bi-archive-fill"></i> Archived Only
+                                            </span>
+                                            <?php endif; ?>
+                                        </div>
+
+                                        <!-- Meta row -->
+                                        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+                                            <?php if ($a['CategoryName']): ?>
+                                            <span style="font-size:.75rem;color:#64748b;display:flex;align-items:center;gap:4px;">
+                                                <i class="bi bi-tag" style="color:#94a3b8;"></i><?= htmlspecialchars($a['CategoryName']) ?>
+                                            </span>
+                                            <?php endif; ?>
+                                            <?php if ($a['ReturnManufacturer'] ?? $a['SupplierName']): ?>
+                                            <span style="font-size:.75rem;color:#64748b;display:flex;align-items:center;gap:4px;">
+                                                <i class="bi bi-building" style="color:#94a3b8;"></i><?= htmlspecialchars($a['ReturnManufacturer'] ?? $a['SupplierName']) ?>
+                                            </span>
+                                            <?php endif; ?>
+                                            <?php if ($expiry): ?>
+                                            <span style="font-size:.75rem;color:<?= $isExpired ? '#dc2626' : '#64748b' ?>;display:flex;align-items:center;gap:4px;font-weight:<?= $isExpired ? '700' : '400' ?>;">
+                                                <i class="bi bi-calendar-x" style="color:<?= $isExpired ? '#dc2626' : '#94a3b8' ?>;"></i>
+                                                Exp: <?= htmlspecialchars($expiry) ?><?= $isExpired ? ' <span style="color:#dc2626;">· EXPIRED</span>' : '' ?>
+                                            </span>
+                                            <?php endif; ?>
+                                            <?php if ($a['UnitPrice']): ?>
+                                            <span style="font-size:.75rem;color:#64748b;display:flex;align-items:center;gap:4px;">
+                                                <i class="bi bi-currency-exchange" style="color:#94a3b8;"></i>&#8369;<?= number_format((float)$a['UnitPrice'], 2) ?>/unit
+                                            </span>
+                                            <?php endif; ?>
+                                        </div>
+
+                                        <?php if ($a['ReturnNotes']): ?>
+                                        <div style="font-size:.77rem;color:#64748b;background:#f8fafc;border-radius:8px;padding:7px 12px;border-left:3px solid #cbd5e1;margin-top:2px;font-style:italic;">
+                                            "<?= htmlspecialchars($a['ReturnNotes']) ?>"
+                                        </div>
+                                        <?php endif; ?>
+                                    </div>
+
+                                    <!-- Right panel: units + date + actions -->
+                                    <div style="border-left:1.5px solid #f1f5f9;padding:14px 16px;display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:8px;min-width:160px;flex-shrink:0;">
+                                        <?php if ($a['UnitsReturned'] > 0): ?>
+                                        <div style="text-align:right;">
+                                            <div style="font-size:.65rem;color:#94a3b8;text-transform:uppercase;font-weight:700;letter-spacing:.05em;">Units Returned</div>
+                                            <div style="font-size:1.4rem;font-weight:800;color:#ea580c;line-height:1.1;"><?= number_format($a['UnitsReturned']) ?></div>
+                                        </div>
+                                        <?php endif; ?>
+
+                                        <?php if ($returnedAt): ?>
+                                        <div style="text-align:right;">
+                                            <div style="font-size:.65rem;color:#94a3b8;text-transform:uppercase;font-weight:700;letter-spacing:.05em;">Returned On</div>
+                                            <div style="font-size:.78rem;font-weight:600;color:#475569;"><?= $returnedAt ?></div>
+                                            <?php if ($a['ReturnedByName']): ?>
+                                            <div style="font-size:.7rem;color:#94a3b8;">by <?= htmlspecialchars($a['ReturnedByName']) ?></div>
+                                            <?php endif; ?>
+                                        </div>
+                                        <?php endif; ?>
+
+                                        <!-- Restore button -->
+                                        <form method="POST" action="?view=archived">
+                                            <input type="hidden" name="action" value="restore_medication">
+                                            <input type="hidden" name="medication_id" value="<?= $a['MedicationID'] ?>">
+                                            <button type="submit" title="Manufacturer returned stock — restore to active inventory"
+                                                style="display:inline-flex;align-items:center;gap:5px;padding:0 14px;height:32px;border-radius:8px;border:1.5px solid #bbf7d0;background:#f0fdf4;color:#15803d;cursor:pointer;font-size:.75rem;font-weight:700;font-family:'Outfit',sans-serif;white-space:nowrap;">
+                                                <i class="bi bi-arrow-counterclockwise"></i> Stock Received Back
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                            <?php endif; ?>
+
+                        </div><!-- /cards -->
                     </div><!-- /archivedPanel -->
 
                 </div><!-- /inventory-card -->
@@ -1008,27 +1197,136 @@ function fmtPad($n, $len = 3): string
         </div>
     </div>
 
-    <!-- ══ Archive Confirm Modal ══ -->
+    <!-- ══ Archive / Return to Manufacturer Modal ══ -->
     <div class="modal-overlay" id="archiveMedModal">
-        <div style="background:#fff;border-radius:16px;padding:0;width:min(420px,90vw);overflow:hidden;">
-            <div style="padding:28px 28px 20px;text-align:center;">
-                <div style="width:52px;height:52px;background:#fff7ed;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
-                    <i class="bi bi-archive-fill" style="font-size:1.4rem;color:#ea580c"></i>
+        <div style="background:#fff;border-radius:16px;padding:0;width:min(520px,94vw);max-height:90vh;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.18);display:flex;flex-direction:column;">
+
+            <!-- Header — fixed -->
+            <div style="flex-shrink:0;display:flex;align-items:center;gap:12px;padding:20px 24px 16px;border-bottom:1.5px solid #fde8d8;background:linear-gradient(90deg,#fff7f0 0%,#fff 100%);">
+                <div style="width:42px;height:42px;background:#fff0e6;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px solid #fed7aa;">
+                    <i class="bi bi-archive-fill" style="font-size:1.2rem;color:#ea580c;"></i>
                 </div>
-                <div style="font-size:1.05rem;font-weight:700;color:#0f172a;margin-bottom:8px;">Archive Medication?</div>
-                <div style="font-size:.88rem;color:#64748b;line-height:1.5;">
-                    <strong id="archiveMedName"></strong> will be removed from the active inventory but all records will be preserved. You can restore it later if needed.
+                <div>
+                    <div style="font-size:1rem;font-weight:700;color:#0f172a;line-height:1.2;">Archive Medication</div>
+                    <div style="font-size:.75rem;color:#94a3b8;margin-top:2px;">This medication will be removed from active inventory</div>
                 </div>
+                <button onclick="closeArchiveModal()" style="margin-left:auto;width:32px;height:32px;border-radius:8px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">&#x2715;</button>
             </div>
-            <form method="POST">
+
+            <!-- Medication name banner — fixed -->
+            <div style="flex-shrink:0;padding:12px 24px;background:#fafafa;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:10px;">
+                <i class="bi bi-capsule-pill" style="color:#64748b;font-size:1rem;"></i>
+                <span style="font-size:.82rem;color:#475569;">Medication:</span>
+                <span style="font-size:.92rem;font-weight:700;color:#0f172a;" id="archiveMedName"></span>
+                <span style="margin-left:auto;font-size:.75rem;font-weight:700;color:#ea580c;background:#fff0e6;border:1.5px solid #fed7aa;padding:3px 10px;border-radius:20px;white-space:nowrap;">
+                    <i class="bi bi-box-seam" style="margin-right:3px;"></i>
+                    <span id="archiveStockDisplay">— units in stock</span>
+                </span>
+            </div>
+
+            <form method="POST" id="archiveForm" style="display:flex;flex-direction:column;flex:1;min-height:0;">
                 <input type="hidden" name="action" value="archive_medication">
                 <input type="hidden" name="medication_id" id="archiveMedId">
-                <div style="display:flex;gap:10px;padding:0 28px 24px;">
+                <input type="hidden" name="units_returned" id="archiveUnitsHidden">
+
+                <!-- Scrollable body -->
+                <div class="return-modal-body">
+
+                    <!-- ── Step 1: Return to manufacturer question ── -->
+                    <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:16px 18px;">
+                        <div style="font-size:.85rem;font-weight:700;color:#0f172a;margin-bottom:12px;display:flex;align-items:center;gap:7px;">
+                            <i class="bi bi-truck" style="color:#ea580c;"></i>
+                            Will this medication be returned to the manufacturer, or archived for now?
+                        </div>
+                        <div style="display:flex;gap:10px;">
+                            <label style="flex:1;cursor:pointer;">
+                                <input type="radio" name="is_return" value="no" id="returnNo" onchange="toggleReturnFields(false)" checked style="display:none;">
+                                <div id="pillNo" style="border:2px solid #fed7aa;border-radius:10px;padding:14px 10px;text-align:center;background:#fff7ed;transition:all .15s;">
+                                    <i class="bi bi-archive-fill" style="display:block;font-size:1.4rem;margin-bottom:6px;color:#ea580c;"></i>
+                                    <span style="font-size:.8rem;font-weight:700;color:#c2410c;">Archive for Now</span>
+                                </div>
+                            </label>
+                            <label style="flex:1;cursor:pointer;">
+                                <input type="radio" name="is_return" value="yes" id="returnYes" onchange="toggleReturnFields(true)" style="display:none;">
+                                <div id="pillYes" style="border:2px solid #e2e8f0;border-radius:10px;padding:14px 10px;text-align:center;background:#fff;transition:all .15s;">
+                                    <i class="bi bi-truck" style="display:block;font-size:1.4rem;margin-bottom:6px;color:#94a3b8;"></i>
+                                    <span style="font-size:.8rem;font-weight:700;color:#64748b;">Return to Manufacturer</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- ── Step 2: Return details (shown only when Yes is selected) ── -->
+                    <div id="returnFields" style="display:none;flex-direction:column;gap:14px;">
+
+                        <!-- Divider -->
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <div style="flex:1;height:1px;background:#e2e8f0;"></div>
+                            <span style="font-size:.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;">Return Details</span>
+                            <div style="flex:1;height:1px;background:#e2e8f0;"></div>
+                        </div>
+
+                        <!-- Return reason pills -->
+                        <div style="display:flex;flex-direction:column;gap:8px;">
+                            <label style="font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#64748b;">Return Reason *</label>
+                            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" id="reasonPills">
+                                <?php foreach (['Expired','Damaged','Recalled','Overstock','Quality Issue','Other'] as $reason):
+                                    $icons = ['Expired'=>'bi-clock-history','Damaged'=>'bi-exclamation-triangle-fill','Recalled'=>'bi-megaphone-fill','Overstock'=>'bi-box-seam','Quality Issue'=>'bi-shield-exclamation','Other'=>'bi-three-dots'];
+                                ?>
+                                <label style="cursor:pointer;">
+                                    <input type="radio" name="return_reason" value="<?= $reason ?>" <?= $reason==='Expired'?'checked':'' ?> style="display:none;" onchange="updateReasonPills(this)">
+                                    <div class="reason-pill <?= $reason==='Expired'?'reason-active':'' ?>" style="border:1.5px solid <?= $reason==='Expired'?'#fed7aa':'#e2e8f0' ?>;border-radius:9px;padding:10px 8px;text-align:center;background:<?= $reason==='Expired'?'#fff7ed':'#f8fafc' ?>;transition:all .15s;">
+                                        <i class="bi <?= $icons[$reason] ?>" style="display:block;font-size:1.1rem;margin-bottom:4px;color:<?= $reason==='Expired'?'#ea580c':'#94a3b8' ?>;"></i>
+                                        <span style="font-size:.72rem;font-weight:700;color:<?= $reason==='Expired'?'#c2410c':'#64748b' ?>;"><?= $reason ?></span>
+                                    </div>
+                                </label>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+
+                        <!-- Units to return -->
+                        <div style="display:flex;flex-direction:column;gap:6px;">
+                            <label style="font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#64748b;">Units Being Returned</label>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <input type="number" min="1" id="archiveUnitsInput" placeholder="e.g. 200"
+                                    oninput="document.getElementById('archiveUnitsHidden').value=this.value"
+                                    style="flex:1;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:.9rem;background:#f8fafc;outline:none;box-sizing:border-box;">
+                                <button type="button" onclick="useAllStock()"
+                                    style="padding:10px 16px;border-radius:10px;border:1.5px solid #fed7aa;background:#fff7ed;color:#ea580c;font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap;">
+                                    All Stock
+                                </button>
+                            </div>
+                            <div style="font-size:.72rem;color:#94a3b8;">Leave blank to default to full current stock.</div>
+                        </div>
+
+                        <!-- Notes -->
+                        <div style="display:flex;flex-direction:column;gap:6px;">
+                            <label style="font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#64748b;">Notes / Reference No. <span style="font-weight:400;text-transform:none;">(optional)</span></label>
+                            <textarea name="return_notes" rows="2" placeholder="e.g. DR No. 2024-1023 — batch recalled by manufacturer…"
+                                style="padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:.85rem;background:#f8fafc;outline:none;resize:vertical;width:100%;box-sizing:border-box;font-family:'Outfit',sans-serif;"></textarea>
+                        </div>
+
+                        <!-- Info note -->
+                        <div style="display:flex;align-items:flex-start;gap:10px;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:10px;padding:12px 14px;">
+                            <i class="bi bi-info-circle-fill" style="color:#ea580c;flex-shrink:0;margin-top:1px;"></i>
+                            <div style="font-size:.78rem;color:#92400e;line-height:1.5;">
+                                Return will be logged in the <strong>Returned to Manufacturer</strong> ledger.
+                                If replacement stock arrives, use <strong>"Stock Received Back"</strong> to restore it.
+                            </div>
+                        </div>
+
+                    </div><!-- /returnFields -->
+
+                </div><!-- /return-modal-body -->
+
+                <!-- Footer — fixed -->
+                <div style="flex-shrink:0;display:flex;gap:10px;padding:14px 24px 20px;border-top:1.5px solid #f1f5f9;background:#fff;">
                     <button type="button" onclick="closeArchiveModal()"
                         style="flex:1;padding:11px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;color:#64748b;font-size:.9rem;font-weight:600;cursor:pointer;">Cancel</button>
-                    <button type="submit"
-                        style="flex:1;padding:11px;border-radius:10px;border:none;background:#ea580c;color:#fff;font-size:.9rem;font-weight:700;cursor:pointer;">
-                        <i class="bi bi-archive-fill" style="margin-right:5px;"></i>Yes, Archive
+                    <button type="submit" id="archiveSubmitBtn"
+                        style="flex:2;padding:11px;border-radius:10px;border:none;background:#ea580c;color:#fff;font-size:.9rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+                        <i class="bi bi-archive-fill" id="archiveSubmitIcon"></i>
+                        <span id="archiveSubmitLabel">Archive for Now</span>
                     </button>
                 </div>
             </form>
@@ -1150,20 +1448,81 @@ function fmtPad($n, $len = 3): string
             if (e.target === document.getElementById('editMedModal')) closeEditModal();
         });
 
-        /* ── Archive Modal ── */
-        function confirmArchive(id, name) {
-            document.getElementById('archiveMedId').value = id;
+        /* ── Archive / Return to Manufacturer Modal ── */
+        let _archiveStock = 0;
+        function confirmArchive(id, name, stock, manufacturer) {
+            _archiveStock = stock || 0;
+            document.getElementById('archiveMedId').value        = id;
             document.getElementById('archiveMedName').textContent = name;
+            document.getElementById('archiveStockDisplay').textContent = _archiveStock + ' unit(s) in stock';
+            document.getElementById('archiveUnitsInput').value   = '';
+            document.getElementById('archiveUnitsHidden').value  = '';
+            document.getElementById('archiveUnitsInput').placeholder = 'e.g. ' + _archiveStock;
+            // Reset to "No, Just Archive" default
+            document.getElementById('returnNo').checked  = true;
+            document.getElementById('returnYes').checked = false;
+            toggleReturnFields(false);
+            // Reset reason pills
+            document.querySelectorAll('#reasonPills input[type=radio]').forEach(r => {
+                r.checked = (r.value === 'Expired');
+                updateReasonPills(r);
+            });
             document.getElementById('archiveMedModal').classList.add('show');
         }
         function closeArchiveModal() {
             document.getElementById('archiveMedModal').classList.remove('show');
         }
+        function toggleReturnFields(isReturn) {
+            const fields     = document.getElementById('returnFields');
+            const pillYes    = document.getElementById('pillYes');
+            const pillNo     = document.getElementById('pillNo');
+            const submitIcon = document.getElementById('archiveSubmitIcon');
+            const submitLbl  = document.getElementById('archiveSubmitLabel');
+
+            fields.style.display = isReturn ? 'flex' : 'none';
+
+            // Style Yes pill
+            pillYes.style.borderColor = isReturn ? '#fed7aa' : '#e2e8f0';
+            pillYes.style.background  = isReturn ? '#fff7ed' : '#fff';
+            pillYes.querySelector('i').style.color   = isReturn ? '#ea580c' : '#94a3b8';
+            pillYes.querySelector('span').style.color = isReturn ? '#c2410c' : '#64748b';
+
+            // Style No pill
+            pillNo.style.borderColor = isReturn ? '#e2e8f0' : '#fed7aa';
+            pillNo.style.background  = isReturn ? '#fff'    : '#fff7ed';
+            pillNo.querySelector('i').style.color   = isReturn ? '#94a3b8' : '#ea580c';
+            pillNo.querySelector('span').style.color = isReturn ? '#64748b' : '#c2410c';
+
+            // Update submit button label
+            if (isReturn) {
+                submitIcon.className = 'bi bi-truck';
+                submitLbl.textContent = 'Archive & Return to Manufacturer';
+            } else {
+                submitIcon.className = 'bi bi-archive-fill';
+                submitLbl.textContent = 'Archive for Now';
+            }
+        }
+        function useAllStock() {
+            document.getElementById('archiveUnitsInput').value  = _archiveStock;
+            document.getElementById('archiveUnitsHidden').value = _archiveStock;
+        }
+        function updateReasonPills(radio) {
+            document.querySelectorAll('#reasonPills label .reason-pill').forEach(pill => {
+                const inp    = pill.closest('label').querySelector('input');
+                const active = inp.checked;
+                pill.style.borderColor = active ? '#fed7aa' : '#e2e8f0';
+                pill.style.background  = active ? '#fff7ed' : '#f8fafc';
+                const icon = pill.querySelector('i');
+                const lbl  = pill.querySelector('span');
+                if (icon) icon.style.color = active ? '#ea580c' : '#94a3b8';
+                if (lbl)  lbl.style.color  = active ? '#c2410c' : '#64748b';
+            });
+        }
+
         document.getElementById('archiveMedModal').addEventListener('click', e => {
             if (e.target === document.getElementById('archiveMedModal')) closeArchiveModal();
         });
 
-        /* ── Delete Modal ── */
         function confirmDelete(id, name) {
             document.getElementById('deleteMedId').value = id;
             document.getElementById('deleteMedName').textContent = name;

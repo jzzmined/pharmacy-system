@@ -7,6 +7,7 @@ $page_title = 'Invoices';
 /* ══ POST — Mark as Paid / Cancelled ══ */
 $txn_success = '';
 $txn_error   = '';
+$receipt_data = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action     = $_POST['action']     ?? '';
@@ -16,8 +17,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $db = getDB();
             if ($action === 'mark_paid') {
-                $s = $db->prepare("UPDATE invoices SET Status='Completed' WHERE InvoiceID=? AND Status='Pending'");
-                $s->execute([$invoice_id]);
+                $amount_tendered  = (float)($_POST['amount_tendered'] ?? 0);
+                $payment_method   = $_POST['payment_method'] ?? 'Cash';
+                $s = $db->prepare("UPDATE invoices SET Status='Completed', AmountTendered=?, PaymentMethod=? WHERE InvoiceID=? AND Status='Pending'");
+                $s->execute([$amount_tendered, $payment_method, $invoice_id]);
+                /* Fetch full invoice for receipt */
+                $r2 = $db->prepare("
+                    SELECT i.*, p.FullName AS PatientName, p.Age AS PatientAge, p.Gender AS PatientGender,
+                           d.FullName AS DoctorName, u.FullName AS PharmacistName,
+                           GROUP_CONCAT(m.GenericName ORDER BY m.GenericName SEPARATOR ', ') AS Medicines
+                    FROM invoices i
+                    JOIN prescriptions pr ON i.PrescriptionID=pr.PrescriptionID
+                    JOIN patients p ON pr.PatientID=p.PatientID
+                    LEFT JOIN users u ON i.PharmacistID=u.UserID
+                    LEFT JOIN doctors d ON pr.DoctorID=d.DoctorID
+                    LEFT JOIN prescriptiondetails pd ON pd.PrescriptionID=pr.PrescriptionID
+                    LEFT JOIN medications m ON pd.MedicationID=m.MedicationID
+                    WHERE i.InvoiceID=?
+                    GROUP BY i.InvoiceID");
+                $r2->execute([$invoice_id]);
+                $receipt_data = $r2->fetch(PDO::FETCH_ASSOC);
                 $txn_success = "Invoice TXN-" . str_pad($invoice_id, 3, '0', STR_PAD_LEFT) . " marked as Paid.";
             } elseif ($action === 'mark_cancelled') {
                 $s = $db->prepare("UPDATE invoices SET Status='Cancelled' WHERE InvoiceID=? AND Status='Pending'");
@@ -454,12 +473,21 @@ function statusClass($s) {
                                 <td>
                                     <?php if ($isPending): ?>
                                         <div style="display:flex;gap:4px;align-items:center">
-                                            <form method="POST" style="margin:0">
+                                            <form method="POST" style="margin:0" id="payForm<?= $r['InvoiceID'] ?>">
                                                 <input type="hidden" name="action" value="mark_paid">
                                                 <input type="hidden" name="invoice_id" value="<?= $r['InvoiceID'] ?>">
+                                                <input type="hidden" name="amount_tendered" id="tendered<?= $r['InvoiceID'] ?>" value="">
+                                                <input type="hidden" name="payment_method" id="method<?= $r['InvoiceID'] ?>" value="">
                                                 <button type="button" class="btn-mark-paid"
-                                                    onclick="confirmPaid(this, 'TXN-<?= fmtPad($r['InvoiceID']) ?>', '<?= number_format((float)$r['Total'],2) ?>')">
-                                                    Paid
+                                                    onclick="openCashierModal(
+                                                        <?= $r['InvoiceID'] ?>,
+                                                        'TXN-<?= fmtPad($r['InvoiceID']) ?>',
+                                                        <?= (float)$r['Total'] ?>,
+                                                        '<?= addslashes(htmlspecialchars($r['PatientName'] ?? '')) ?>',
+                                                        '<?= addslashes(htmlspecialchars($r['Medicines'] ?? '')) ?>',
+                                                        <?= (float)$r['Discount'] ?>
+                                                    )">
+                                                    <i class="bi bi-cash-coin"></i> Paid
                                                 </button>
                                             </form>
                                             <form method="POST" style="margin:0">
@@ -489,6 +517,140 @@ function statusClass($s) {
 </div><!-- /app-layout -->
 
 <div class="toast-tray" id="toastTray"></div>
+
+<!-- ══ CASHIER PAYMENT MODAL ══ -->
+<div id="cashierOverlay" class="cashier-overlay" onclick="if(event.target===this)closeCashier()">
+    <div class="cashier-box">
+        <div class="cashier-header">
+            <div class="cashier-header-left">
+                <i class="bi bi-cash-register" style="font-size:1.3rem;color:#6366f1;"></i>
+                <div>
+                    <div class="cashier-title">Payment Checkout</div>
+                    <div class="cashier-subtitle" id="cashierInvId">TXN-001</div>
+                </div>
+            </div>
+            <button class="cashier-close" onclick="closeCashier()"><i class="bi bi-x-lg"></i></button>
+        </div>
+
+        <!-- Patient + Medicines summary -->
+        <div class="cashier-summary">
+            <div class="cashier-summary-row">
+                <span class="cashier-lbl"><i class="bi bi-person-fill"></i> Patient</span>
+                <span class="cashier-val" id="cashierPatient">—</span>
+            </div>
+            <div class="cashier-summary-row">
+                <span class="cashier-lbl"><i class="bi bi-capsule-pill"></i> Medicines</span>
+                <span class="cashier-val" id="cashierMeds" style="text-align:right;max-width:200px;">—</span>
+            </div>
+        </div>
+
+        <!-- Amount breakdown -->
+        <div class="cashier-breakdown">
+            <div class="cashier-breakdown-row">
+                <span>Subtotal</span>
+                <span id="cashierSubtotal">₱0.00</span>
+            </div>
+            <div class="cashier-breakdown-row discount" id="cashierDiscountRow" style="display:none">
+                <span><i class="bi bi-tag-fill"></i> Senior Discount</span>
+                <span id="cashierDiscount" style="color:#d97706;">−₱0.00</span>
+            </div>
+            <div class="cashier-breakdown-row total">
+                <span>Total Due</span>
+                <span id="cashierTotal">₱0.00</span>
+            </div>
+        </div>
+
+        <!-- Payment Method -->
+        <div class="cashier-field">
+            <label class="cashier-field-label">Payment Method</label>
+            <div class="cashier-methods">
+                <label class="cashier-method active" data-method="Cash">
+                    <input type="radio" name="payMethod" value="Cash" checked onchange="selectMethod(this)">
+                    <i class="bi bi-cash-stack"></i> Cash
+                </label>
+                <label class="cashier-method" data-method="GCash">
+                    <input type="radio" name="payMethod" value="GCash" onchange="selectMethod(this)">
+                    <i class="bi bi-phone-fill"></i> GCash
+                </label>
+                <label class="cashier-method" data-method="Card">
+                    <input type="radio" name="payMethod" value="Card" onchange="selectMethod(this)">
+                    <i class="bi bi-credit-card-2-front-fill"></i> Card
+                </label>
+                <label class="cashier-method" data-method="PhilHealth">
+                    <input type="radio" name="payMethod" value="PhilHealth" onchange="selectMethod(this)">
+                    <i class="bi bi-shield-plus"></i> PhilHealth
+                </label>
+            </div>
+        </div>
+
+        <!-- Amount Tendered (only for Cash) -->
+        <div class="cashier-field" id="cashierTenderedWrap">
+            <label class="cashier-field-label">Amount Tendered (₱)</label>
+            <input type="number" id="cashierTenderedInput" class="cashier-input" min="0" step="0.01"
+                placeholder="Enter amount paid…" oninput="calcChange()" onkeydown="if(event.key==='Enter')submitPayment()">
+            <!-- Quick denomination buttons -->
+            <div class="cashier-denoms" id="cashierDenoms"></div>
+        </div>
+
+        <!-- Change display -->
+        <div class="cashier-change-card" id="cashierChangeCard">
+            <div class="cashier-change-lbl">Change</div>
+            <div class="cashier-change-val" id="cashierChangeVal">₱0.00</div>
+        </div>
+        <div class="cashier-insufficient" id="cashierInsufficient" style="display:none">
+            <i class="bi bi-exclamation-triangle-fill"></i> Amount tendered is less than total due.
+        </div>
+
+        <!-- Actions -->
+        <div class="cashier-actions">
+            <button class="cashier-btn-cancel" onclick="closeCashier()">Cancel</button>
+            <button class="cashier-btn-confirm" id="cashierConfirmBtn" onclick="submitPayment()" disabled>
+                <i class="bi bi-check-circle-fill"></i> Confirm Payment
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ══ RECEIPT MODAL ══ -->
+<?php if ($receipt_data): ?>
+<div id="receiptOverlay" class="cashier-overlay" style="display:flex;" onclick="if(event.target===this)closeReceipt()">
+    <div class="receipt-box" id="receiptPrintArea">
+        <div class="receipt-header">
+            <div class="receipt-brand">PharmaCare <span style="font-size:.6em;vertical-align:super;opacity:.7;">♡</span></div>
+            <div class="receipt-sub">Official Pharmacy Receipt</div>
+            <div class="receipt-date"><?= date('F d, Y · h:i A') ?></div>
+        </div>
+        <div class="receipt-divider">- - - - - - - - - - - - - - - - - - - - -</div>
+        <div class="receipt-row"><span>Invoice</span><span>TXN-<?= fmtPad($receipt_data['InvoiceID']) ?></span></div>
+        <div class="receipt-row"><span>Patient</span><span><?= htmlspecialchars($receipt_data['PatientName']) ?></span></div>
+        <div class="receipt-row"><span>Doctor</span><span><?= htmlspecialchars($receipt_data['DoctorName'] ?? '—') ?></span></div>
+        <div class="receipt-row"><span>Pharmacist</span><span><?= htmlspecialchars($receipt_data['PharmacistName'] ?? '—') ?></span></div>
+        <div class="receipt-divider">- - - - - - - - - - - - - - - - - - - - -</div>
+        <div class="receipt-meds"><?= htmlspecialchars($receipt_data['Medicines'] ?? '—') ?></div>
+        <div class="receipt-divider">- - - - - - - - - - - - - - - - - - - - -</div>
+        <div class="receipt-row"><span>Subtotal</span><span>₱<?= number_format((float)$receipt_data['Subtotal'], 2) ?></span></div>
+        <?php if ((float)$receipt_data['Discount'] > 0): ?>
+        <div class="receipt-row" style="color:#d97706"><span>Senior Discount</span><span>−₱<?= number_format((float)$receipt_data['Discount'], 2) ?></span></div>
+        <?php endif; ?>
+        <div class="receipt-row receipt-total"><span>TOTAL</span><span>₱<?= number_format((float)$receipt_data['Total'], 2) ?></span></div>
+        <div class="receipt-row"><span>Payment Method</span><span><?= htmlspecialchars($receipt_data['PaymentMethod'] ?? 'Cash') ?></span></div>
+        <?php
+            $tendered = (float)($receipt_data['AmountTendered'] ?? $receipt_data['Total']);
+            $change   = $tendered - (float)$receipt_data['Total'];
+        ?>
+        <div class="receipt-row"><span>Amount Tendered</span><span>₱<?= number_format($tendered, 2) ?></span></div>
+        <div class="receipt-row"><span>Change</span><span>₱<?= number_format(max(0, $change), 2) ?></span></div>
+        <div class="receipt-divider">- - - - - - - - - - - - - - - - - - - - -</div>
+        <div class="receipt-footer">Thank you for choosing PharmaCare!<br><span style="font-size:.7rem;color:#94a3b8;">Please keep this receipt for your records.</span></div>
+        <div class="receipt-actions no-print">
+            <button class="cashier-btn-cancel" onclick="closeReceipt()">Close</button>
+            <button class="cashier-btn-confirm" onclick="printReceipt()"><i class="bi bi-printer-fill"></i> Print Receipt</button>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+
 
 <script>
 'use strict';
@@ -593,7 +755,131 @@ const sidebarToggle  = document.getElementById('sidebarToggle');
 if (sidebarToggle) sidebarToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); sidebarOverlay.classList.toggle('show'); });
 if (sidebarOverlay) sidebarOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('show'); });
 
-/* ── Transaction confirm helpers ── */
+/* ── Cashier Modal ── */
+let _cashierInvoiceId = null;
+let _cashierTotal     = 0;
+
+function openCashierModal(invoiceId, txnLabel, total, patient, meds, discount) {
+    _cashierInvoiceId = invoiceId;
+    _cashierTotal     = total;
+
+    document.getElementById('cashierInvId').textContent   = txnLabel;
+    document.getElementById('cashierPatient').textContent = patient;
+    document.getElementById('cashierMeds').textContent    = meds;
+
+    const subtotal = total + discount;
+    document.getElementById('cashierSubtotal').textContent = '₱' + subtotal.toFixed(2);
+    document.getElementById('cashierTotal').textContent    = '₱' + total.toFixed(2);
+
+    const discRow = document.getElementById('cashierDiscountRow');
+    if (discount > 0) {
+        discRow.style.display = '';
+        document.getElementById('cashierDiscount').textContent = '−₱' + discount.toFixed(2);
+    } else {
+        discRow.style.display = 'none';
+    }
+
+    /* Reset fields */
+    document.getElementById('cashierTenderedInput').value = '';
+    document.getElementById('cashierChangeVal').textContent = '₱0.00';
+    document.getElementById('cashierInsufficient').style.display = 'none';
+    document.getElementById('cashierConfirmBtn').disabled = true;
+
+    /* Default to Cash */
+    selectMethod(document.querySelector('input[name="payMethod"][value="Cash"]'));
+
+    /* Quick denominations */
+    buildDenoms(total);
+
+    document.getElementById('cashierOverlay').classList.add('show');
+    setTimeout(() => document.getElementById('cashierTenderedInput').focus(), 120);
+}
+
+function buildDenoms(total) {
+    const denoms = [20,50,100,200,500,1000];
+    const container = document.getElementById('cashierDenoms');
+    container.innerHTML = '';
+    denoms.forEach(d => {
+        if (d < total) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'cashier-denom-btn';
+        btn.textContent = '₱' + d.toLocaleString();
+        btn.onclick = () => {
+            document.getElementById('cashierTenderedInput').value = d;
+            calcChange();
+        };
+        container.appendChild(btn);
+    });
+    /* Exact button */
+    const exact = document.createElement('button');
+    exact.type = 'button';
+    exact.className = 'cashier-denom-btn';
+    exact.textContent = 'Exact ₱' + total.toFixed(2);
+    exact.style.borderColor = '#a5b4fc';
+    exact.onclick = () => {
+        document.getElementById('cashierTenderedInput').value = total.toFixed(2);
+        calcChange();
+    };
+    container.appendChild(exact);
+}
+
+function selectMethod(input) {
+    document.querySelectorAll('.cashier-method').forEach(l => l.classList.remove('active'));
+    if (input) {
+        input.checked = true;
+        input.closest('.cashier-method').classList.add('active');
+    }
+    const isCash = !input || input.value === 'Cash';
+    document.getElementById('cashierTenderedWrap').style.display = isCash ? '' : 'none';
+    document.getElementById('cashierChangeCard').style.display   = isCash ? '' : 'none';
+    if (!isCash) {
+        document.getElementById('cashierInsufficient').style.display = 'none';
+        document.getElementById('cashierConfirmBtn').disabled = false;
+    } else {
+        calcChange();
+    }
+}
+
+function calcChange() {
+    const tendered = parseFloat(document.getElementById('cashierTenderedInput').value) || 0;
+    const change   = tendered - _cashierTotal;
+    const ok       = tendered >= _cashierTotal;
+    document.getElementById('cashierChangeVal').textContent = ok ? '₱' + change.toFixed(2) : '₱0.00';
+    document.getElementById('cashierChangeCard').style.borderColor  = ok ? '#bbf7d0' : '#fecaca';
+    document.getElementById('cashierChangeCard').style.background   = ok ? '#f0fdf4' : '#fff5f5';
+    document.getElementById('cashierChangeVal').style.color         = ok ? '#15803d' : '#dc2626';
+    document.getElementById('cashierInsufficient').style.display    = (!ok && tendered > 0) ? '' : 'none';
+    document.getElementById('cashierConfirmBtn').disabled = !ok;
+}
+
+function submitPayment() {
+    const invoiceId = _cashierInvoiceId;
+    const method    = document.querySelector('input[name="payMethod"]:checked')?.value || 'Cash';
+    const isCash    = method === 'Cash';
+    const tendered  = isCash ? parseFloat(document.getElementById('cashierTenderedInput').value) : _cashierTotal;
+
+    if (isCash && tendered < _cashierTotal) return;
+
+    document.getElementById('tendered' + invoiceId).value = tendered.toFixed(2);
+    document.getElementById('method'   + invoiceId).value = method;
+    document.getElementById('payForm'  + invoiceId).submit();
+}
+
+function closeCashier() {
+    document.getElementById('cashierOverlay').classList.remove('show');
+}
+
+function closeReceipt() {
+    const el = document.getElementById('receiptOverlay');
+    if (el) el.style.display = 'none';
+}
+
+function printReceipt() {
+    window.print();
+}
+
+/* legacy — kept for cancel confirm */
 function confirmPaid(btn, txnId, total) {
     const form = btn.closest('form');
     pcConfirm({
@@ -616,6 +902,14 @@ function confirmCancel(btn, txnId) {
         onOk:   () => form.submit()
     });
 }
+
+/* Auto-show receipt if just paid */
+<?php if ($receipt_data): ?>
+document.addEventListener('DOMContentLoaded', function() {
+    const ro = document.getElementById('receiptOverlay');
+    if (ro) ro.style.display = 'flex';
+});
+<?php endif; ?>
 
 function showToast(msg, type = 'ok', duration = 3200) {
     const icons = { ok:'bi-check-circle-fill', warn:'bi-exclamation-triangle-fill', err:'bi-x-circle-fill', info:'bi-info-circle-fill' };

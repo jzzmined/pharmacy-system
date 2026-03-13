@@ -1508,6 +1508,25 @@ tbody td { padding: 13px 20px; color: #475569; vertical-align: middle; }
 .modal-btn-save:hover { background: #2d4460; transform: translateY(-1px); }
 .modal-btn-save:active { transform: translateY(0); }
 
+/* ══ Return-to-Manufacturer modal — scrollable content body ══ */
+.return-modal-body {
+    flex: 1;
+    min-height: 0;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: #fed7aa #fff7ed;
+}
+.return-modal-body::-webkit-scrollbar        { width: 6px; }
+.return-modal-body::-webkit-scrollbar-track  { background: #fff7ed; border-radius: 10px; }
+.return-modal-body::-webkit-scrollbar-thumb  { background: #fed7aa; border-radius: 10px; }
+.return-modal-body::-webkit-scrollbar-thumb:hover { background: #fb923c; }
+
+
 /* =====================================================
    ADMIN PAGE
    ===================================================== */
@@ -1748,6 +1767,181 @@ tbody td { padding: 13px 20px; color: #475569; vertical-align: middle; }
 .bb-export  { background: #d97706; color: #fff; } .bb-export  svg { stroke: #fff; } .bb-export  i.bi { color: #fff; }
 .bb-restore { background: #2563eb; color: #fff; } .bb-restore svg { stroke: #fff; } .bb-restore i.bi { color: #fff; }
 .bb-exit    { background: #dc2626; color: #fff; } .bb-exit    svg { stroke: #fff; } .bb-exit    i.bi { color: #fff; }
+
+/* =====================================================
+   CASHIER PAYMENT MODAL
+   ===================================================== */
+.cashier-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.45);
+    display: none; align-items: center; justify-content: center;
+    z-index: 9999; padding: 16px;
+}
+.cashier-overlay.show { display: flex; }
+
+.cashier-box {
+    background: var(--white);
+    border-radius: var(--radius);
+    width: 100%; max-width: 460px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.18);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+}
+
+.cashier-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid #f1f5f9;
+}
+.cashier-header-left { display: flex; align-items: center; gap: 12px; }
+.cashier-title   { font-size: .95rem; font-weight: 800; color: #0f172a; }
+.cashier-subtitle { font-size: .72rem; color: #6366f1; font-weight: 700; }
+.cashier-close {
+    background: none; border: none; cursor: pointer;
+    color: var(--slate-light); font-size: .9rem; padding: 4px;
+    transition: color var(--ease);
+}
+.cashier-close:hover { color: var(--slate-text); }
+
+.cashier-summary {
+    padding: 12px 20px;
+    background: #f8fafc;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex; flex-direction: column; gap: 6px;
+}
+.cashier-summary-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.cashier-lbl { font-size: .72rem; color: var(--slate-light); font-weight: 600; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.cashier-val { font-size: .80rem; font-weight: 600; color: #334155; text-align: right; max-width: 220px; }
+
+.cashier-breakdown {
+    padding: 14px 20px;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex; flex-direction: column; gap: 6px;
+}
+.cashier-breakdown-row { display: flex; justify-content: space-between; font-size: .82rem; color: var(--slate-text); }
+.cashier-breakdown-row.total {
+    font-size: 1.05rem; font-weight: 800; color: #0f172a;
+    padding-top: 6px; border-top: 1px dashed #e2e8f0;
+}
+
+.cashier-field { padding: 12px 20px 0; }
+.cashier-field-label {
+    font-size: .73rem; font-weight: 700; color: #64748b;
+    text-transform: uppercase; letter-spacing: .06em;
+    display: block; margin-bottom: 8px;
+}
+
+.cashier-methods { display: flex; gap: 8px; flex-wrap: wrap; }
+.cashier-method {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 13px; border-radius: var(--br-pill);
+    border: 1.5px solid #e2e8f0; background: #f8fafc;
+    font-size: .78rem; font-weight: 600; cursor: pointer;
+    color: var(--slate-text); transition: all var(--ease);
+    font-family: var(--font);
+}
+.cashier-method input[type="radio"] { display: none; }
+.cashier-method.active,
+.cashier-method:hover { background: #eef2ff; border-color: #6366f1; color: #4f46e5; }
+
+.cashier-input {
+    width: 100%; padding: 11px 14px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid #e2e8f0;
+    font-size: 1.05rem; font-weight: 700;
+    font-family: var(--font); color: #0f172a;
+    outline: none; transition: border-color var(--ease);
+    background: var(--white);
+}
+.cashier-input:focus { border-color: var(--blue-main); box-shadow: 0 0 0 3px rgba(73,136,196,.15); }
+
+.cashier-denoms { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.cashier-denom-btn {
+    padding: 5px 12px; border-radius: var(--br-pill);
+    border: 1px solid #e2e8f0; background: #f1f5f9;
+    font-size: .75rem; font-weight: 700; cursor: pointer;
+    color: var(--slate-text); font-family: var(--font);
+    transition: all var(--ease);
+}
+.cashier-denom-btn:hover { background: #ddd6fe; border-color: #a5b4fc; color: #4f46e5; }
+
+.cashier-change-card {
+    margin: 14px 20px 0; padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    background: #f0fdf4; border: 1.5px solid #bbf7d0;
+    display: flex; justify-content: space-between; align-items: center;
+    transition: background var(--ease), border-color var(--ease);
+}
+.cashier-change-lbl { font-size: .75rem; font-weight: 700; color: #15803d; text-transform: uppercase; letter-spacing: .06em; }
+.cashier-change-val { font-size: 1.3rem; font-weight: 800; color: #15803d; }
+
+.cashier-insufficient {
+    margin: 8px 20px 0; padding: 9px 13px;
+    border-radius: var(--radius-xs);
+    background: #fee2e2; color: #dc2626;
+    font-size: .78rem; font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+}
+
+.cashier-actions {
+    display: flex; gap: 10px; padding: 16px 20px;
+    justify-content: flex-end;
+    border-top: 1px solid #f1f5f9; margin-top: 14px;
+}
+.cashier-btn-cancel {
+    padding: 9px 20px; border-radius: var(--br-pill);
+    border: 1.5px solid #e2e8f0; background: var(--white);
+    font-size: .82rem; font-weight: 700; cursor: pointer;
+    font-family: var(--font); color: #64748b;
+    transition: background var(--ease);
+}
+.cashier-btn-cancel:hover { background: #f1f5f9; }
+
+.cashier-btn-confirm {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 22px; border-radius: var(--br-pill);
+    border: none; background: var(--green); color: var(--white);
+    font-size: .82rem; font-weight: 700; cursor: pointer;
+    font-family: var(--font); transition: background var(--ease);
+}
+.cashier-btn-confirm:hover:not(:disabled) { background: #16a34a; }
+.cashier-btn-confirm:disabled { background: var(--slate-light); cursor: not-allowed; }
+
+/* =====================================================
+   RECEIPT MODAL
+   ===================================================== */
+.receipt-box {
+    background: var(--white);
+    border-radius: var(--radius);
+    width: 100%; max-width: 340px;
+    padding: 24px 22px;
+    font-family: var(--font);
+    box-shadow: 0 12px 40px rgba(0,0,0,.15);
+}
+.receipt-header { text-align: center; margin-bottom: 4px; }
+.receipt-brand  { font-size: 1.25rem; font-weight: 800; color: #0f172a; }
+.receipt-sub    { font-size: .75rem; color: #64748b; margin-top: 2px; }
+.receipt-date   { font-size: .70rem; color: var(--slate-light); margin-top: 3px; }
+.receipt-divider {
+    text-align: center; font-size: .70rem;
+    color: #cbd5e1; margin: 10px 0; letter-spacing: .05em;
+}
+.receipt-row { display: flex; justify-content: space-between; font-size: .80rem; color: #334155; margin: 5px 0; }
+.receipt-total { font-size: 1rem; font-weight: 800; color: #0f172a; margin-top: 6px; padding-top: 6px; }
+.receipt-meds  { font-size: .75rem; color: #64748b; text-align: center; margin: 4px 0; font-style: italic; }
+.receipt-footer { text-align: center; font-size: .78rem; color: var(--slate-text); margin-top: 6px; line-height: 1.6; }
+.receipt-actions {
+    display: flex; gap: 10px; justify-content: center;
+    margin-top: 18px; padding-top: 14px;
+    border-top: 1px solid #f1f5f9;
+}
+
+@media print {
+    body > *:not(#receiptOverlay) { display: none !important; }
+    #receiptOverlay { position: static !important; background: none !important; padding: 0 !important; }
+    .no-print { display: none !important; }
+    .receipt-box { box-shadow: none; border: 1px dashed #ccc; }
+}
 
 /* =====================================================
    RESPONSIVE

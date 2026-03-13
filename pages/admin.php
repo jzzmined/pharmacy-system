@@ -368,6 +368,36 @@ try {
     error_log($e->getMessage());
 }
 
+/* ══ RECENT RECEIPTS ══ */
+try {
+    $db = getDB();
+    $s = $db->prepare("
+        SELECT i.InvoiceID, i.Total, i.Subtotal, i.Discount,
+               i.AmountTendered, i.PaymentMethod,
+               i.DispenseQuantity AS DispenseQty,
+               pr.DatePrescribed,
+               p.FullName AS PatientName, p.Age AS PatientAge, p.Gender AS PatientGender,
+               d.FullName AS DoctorName,
+               u.FullName AS PharmacistName,
+               GROUP_CONCAT(m.GenericName ORDER BY m.GenericName SEPARATOR ', ') AS Medicines
+        FROM invoices i
+        JOIN prescriptions pr           ON i.PrescriptionID  = pr.PrescriptionID
+        JOIN patients p                 ON pr.PatientID       = p.PatientID
+        LEFT JOIN users u               ON i.PharmacistID     = u.UserID
+        LEFT JOIN doctors d             ON pr.DoctorID        = d.DoctorID
+        LEFT JOIN prescriptiondetails pd ON pd.PrescriptionID = pr.PrescriptionID
+        LEFT JOIN medications m         ON pd.MedicationID    = m.MedicationID
+        WHERE i.Status = 'Completed'
+        GROUP BY i.InvoiceID
+        ORDER BY i.InvoiceID DESC
+        LIMIT 5
+    ");
+    $s->execute();
+    $recent_receipts = $s->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $recent_receipts = [];
+}
+
 // ── Audit Report Data ──
 $audit_date_from = $_GET['audit_from'] ?? date('Y-m-01');
 $audit_date_to   = $_GET['audit_to']   ?? date('Y-m-d');
@@ -1193,6 +1223,66 @@ if (!empty($_SESSION['error'])) {
                 </div><!-- /admin-backup-card -->
 
             </div><!-- /admin-layout -->
+
+            <!-- ══ RECENT RECEIPTS ══ -->
+            <div class="admin-backup-card" style="margin-top:20px;">
+                <div class="backup-header">
+                    <i class="bi bi-receipt backup-header-icon"></i>
+                    <span>Recent Receipts</span>
+                    <a href="transactions.php" style="margin-left:auto;font-size:.75rem;font-weight:700;color:#6366f1;background:#eef2ff;padding:4px 12px;border-radius:999px;text-decoration:none;">
+                        View All
+                    </a>
+                </div>
+
+                <?php if (empty($recent_receipts)): ?>
+                    <div style="padding:32px;text-align:center;color:#94a3b8;font-size:.875rem;">No completed transactions yet.</div>
+                <?php else: ?>
+                <div style="overflow-x:auto;">
+                    <table class="admin-table" style="min-width:600px;">
+                        <thead>
+                            <tr>
+                                <th>Invoice</th>
+                                <th>Date</th>
+                                <th>Patient</th>
+                                <th>Medicines</th>
+                                <th>Method</th>
+                                <th>Total</th>
+                                <th style="text-align:center">Receipt</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($recent_receipts as $rc): ?>
+                            <tr>
+                                <td style="font-weight:700;color:#6366f1;font-size:.78rem;">TXN-<?= fmtPad3($rc['InvoiceID']) ?></td>
+                                <td style="font-size:.78rem;color:#64748b;"><?= htmlspecialchars($rc['DatePrescribed'] ?? '—') ?></td>
+                                <td>
+                                    <div style="font-weight:600;font-size:.82rem;color:#1e293b;"><?= htmlspecialchars($rc['PatientName'] ?? '—') ?></div>
+                                    <div style="font-size:.70rem;color:#94a3b8;"><?= (int)$rc['PatientAge'] > 0 ? $rc['PatientAge'].' y/o · ' : '' ?><?= htmlspecialchars($rc['PatientGender'] ?? '') ?></div>
+                                </td>
+                                <td style="font-size:.73rem;color:#64748b;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="<?= htmlspecialchars($rc['Medicines'] ?? '') ?>">
+                                    <?= htmlspecialchars($rc['Medicines'] ?? '—') ?>
+                                </td>
+                                <td>
+                                    <span style="font-size:.73rem;font-weight:700;padding:3px 9px;border-radius:999px;
+                                        background:<?= ($rc['PaymentMethod'] ?? 'Cash') === 'Cash' ? '#dcfce7' : (($rc['PaymentMethod'] ?? '') === 'GCash' ? '#dbeafe' : '#fef3c7') ?>;
+                                        color:<?= ($rc['PaymentMethod'] ?? 'Cash') === 'Cash' ? '#15803d' : (($rc['PaymentMethod'] ?? '') === 'GCash' ? '#1d4ed8' : '#b45309') ?>;">
+                                        <?= htmlspecialchars($rc['PaymentMethod'] ?? 'Cash') ?>
+                                    </span>
+                                </td>
+                                <td style="font-weight:800;color:#1e293b;">₱<?= number_format((float)$rc['Total'], 2) ?></td>
+                                <td style="text-align:center;">
+                                    <button class="ua-btn" title="View Receipt" style="color:#6366f1;"
+                                        onclick="viewReceipt(<?= htmlspecialchars(json_encode($rc), ENT_QUOTES) ?>)">
+                                        <i class="bi bi-receipt"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php endif; ?>
+            </div><!-- /recent-receipts -->
         </div><!-- /page-body -->
     </div><!-- /main-area -->
 </div><!-- /app-layout -->
@@ -1735,6 +1825,37 @@ if (!empty($_SESSION['error'])) {
         <div class="send-confirm-actions" style="margin-top:6px">
             <button class="scn-cancel" onclick="closeSchedBackup()">Cancel</button>
             <button class="scn-send" onclick="saveSchedBackup()">Save Schedule</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══ RECEIPT VIEW MODAL ══ -->
+<div id="receiptViewOverlay" class="cashier-overlay" onclick="if(event.target===this)closeReceiptView()">
+    <div class="receipt-box" id="receiptViewBox">
+        <div class="receipt-header">
+            <div class="receipt-brand">PharmaCare <span style="font-size:.6em;vertical-align:super;opacity:.7;">♡</span></div>
+            <div class="receipt-sub">Official Pharmacy Receipt</div>
+            <div class="receipt-date" id="rv-date"></div>
+        </div>
+        <div class="receipt-divider">- - - - - - - - - - - - - - - - - - - - -</div>
+        <div class="receipt-row"><span>Invoice</span><span id="rv-inv"></span></div>
+        <div class="receipt-row"><span>Patient</span><span id="rv-patient"></span></div>
+        <div class="receipt-row"><span>Doctor</span><span id="rv-doctor"></span></div>
+        <div class="receipt-row"><span>Pharmacist</span><span id="rv-pharmacist"></span></div>
+        <div class="receipt-divider">- - - - - - - - - - - - - - - - - - - - -</div>
+        <div class="receipt-meds" id="rv-meds"></div>
+        <div class="receipt-divider">- - - - - - - - - - - - - - - - - - - - -</div>
+        <div class="receipt-row"><span>Subtotal</span><span id="rv-subtotal"></span></div>
+        <div class="receipt-row" id="rv-discount-row" style="color:#d97706;display:none"><span>Senior Discount</span><span id="rv-discount"></span></div>
+        <div class="receipt-row receipt-total"><span>TOTAL</span><span id="rv-total"></span></div>
+        <div class="receipt-row"><span>Payment Method</span><span id="rv-method"></span></div>
+        <div class="receipt-row"><span>Amount Tendered</span><span id="rv-tendered"></span></div>
+        <div class="receipt-row"><span>Change</span><span id="rv-change"></span></div>
+        <div class="receipt-divider">- - - - - - - - - - - - - - - - - - - - -</div>
+        <div class="receipt-footer">Thank you for choosing PharmaCare!<br><span style="font-size:.7rem;color:#94a3b8;">Please keep this receipt for your records.</span></div>
+        <div class="receipt-actions no-print">
+            <button class="cashier-btn-cancel" onclick="closeReceiptView()">Close</button>
+            <button class="cashier-btn-confirm" onclick="printReceiptView()"><i class="bi bi-printer-fill"></i> Print Receipt</button>
         </div>
     </div>
 </div>
@@ -2320,6 +2441,51 @@ function pcConfirm({ title='Are you sure?', body='', okText='Confirm', type='war
     okBtn.onclick     = () => { closeConfirm(); if (onOk) onOk(); };
     requestAnimationFrame(() => overlay.classList.add('show'));
 }
+/* ── Recent Receipts ── */
+function viewReceipt(rc) {
+    const fmt  = n => '₱' + parseFloat(n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const pad  = n => 'TXN-' + String(n).padStart(3, '0');
+
+    document.getElementById('rv-date').textContent       = rc.DatePrescribed || '—';
+    document.getElementById('rv-inv').textContent        = pad(rc.InvoiceID);
+    document.getElementById('rv-patient').textContent    = rc.PatientName || '—';
+    document.getElementById('rv-doctor').textContent     = rc.DoctorName || '—';
+    document.getElementById('rv-pharmacist').textContent = rc.PharmacistName || '—';
+    document.getElementById('rv-meds').textContent       = rc.Medicines || '—';
+    document.getElementById('rv-subtotal').textContent   = fmt(rc.Subtotal);
+    document.getElementById('rv-total').textContent      = fmt(rc.Total);
+    document.getElementById('rv-method').textContent     = rc.PaymentMethod || 'Cash';
+
+    const discount = parseFloat(rc.Discount || 0);
+    const discRow  = document.getElementById('rv-discount-row');
+    if (discount > 0) {
+        discRow.style.display = '';
+        document.getElementById('rv-discount').textContent = '−' + fmt(discount);
+    } else {
+        discRow.style.display = 'none';
+    }
+
+    const tendered = parseFloat(rc.AmountTendered || rc.Total || 0);
+    const change   = Math.max(0, tendered - parseFloat(rc.Total || 0));
+    document.getElementById('rv-tendered').textContent = fmt(tendered);
+    document.getElementById('rv-change').textContent   = fmt(change);
+
+    document.getElementById('receiptViewOverlay').classList.add('show');
+}
+
+function closeReceiptView() {
+    document.getElementById('receiptViewOverlay').classList.remove('show');
+}
+
+function printReceiptView() {
+    const box    = document.getElementById('receiptViewBox');
+    const orig   = document.body.innerHTML;
+    document.body.innerHTML = box.outerHTML;
+    window.print();
+    document.body.innerHTML = orig;
+    location.reload();
+}
+
 function closeConfirm() {
     const ov = document.getElementById('pcConfirmOverlay');
     if (ov) ov.classList.remove('show');
